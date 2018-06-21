@@ -1,0 +1,39 @@
+#pragma once
+
+#include <stdint.h>
+
+using s8 = int8_t;
+using s16 = int16_t;
+using s32 = int32_t;
+using s64 = int64_t;
+
+using u8 = uint8_t;
+using u16 = uint16_t;
+using u32 = uint32_t;
+using u64 = uint64_t;
+
+using real32 = float;
+using real64 = double;
+
+using byte = u8;
+
+using wchar = wchar_t;
+using wbyte = wchar;
+
+// Contains either: 0 - false, 
+//	or anything else - true
+using bool32 = int;
+
+// String unicode typedef
+#include <string>
+#include <string_view>
+
+#if defined UNICODE || defined _UNICODE
+using String = std::wstring;
+using StringView = std::wstring_view;
+using Char = wchar;
+#else
+using String = std::string;
+using StringView = std::string_view;
+using Char = char;
+#endif

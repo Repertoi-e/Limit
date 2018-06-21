@@ -1,0 +1,32 @@
+{
+  // The "environments" property is an array of key value pairs of the form
+  // { "EnvVar1": "Value1", "EnvVar2": "Value2" }
+  "environments": [
+    {
+      "INCLUDE": "${projectRoot}src"
+    }
+  ],
+
+  "configurations": [
+    {
+      "inheritEnvironments": [
+        // Inherit the MSVC 64-bit environment and toolchain.
+        "msvc_x64"
+      ],
+      "name": "Internal x64",
+      "includePath": [
+        // Use the include path defined above.
+        "${env.INCLUDE}",
+        // Windows SDK and CRT headers
+        "${env.WindowsSdkDir}include\\${env.WindowsSDKVersion}\\ucrt",
+        "${env.NETFXSDKDir}\\include\\um",
+        "${env.WindowsSdkDir}include\\${env.WindowsSDKVersion}\\um",
+        "${env.WindowsSdkDir}include\\${env.WindowsSDKVersion}\\shared",
+        "${env.VCToolsInstallDir}include"
+      ],
+      "defines": [ "LIMIT_INTERNAL", "WIN32", "_DEBUG", "UNICODE", "_UNICODE" ],
+      "compilerSwitches": "/std:c++17",
+      "intelliSenseMode": "windows-msvc-x64"
+    }
+  ]
+}
