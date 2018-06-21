@@ -5,7 +5,7 @@
 
 #include "Limit.cpp"
 
-LRESULT CALLBACK WindowProc(HWND window, u32 message, WPARAM wParam, LPARAM lParam)
+static LRESULT CALLBACK WindowProc(HWND window, u32 message, WPARAM wParam, LPARAM lParam)
 {
 	switch (message)
 	{
@@ -52,9 +52,9 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 
 		HWND window = CreateWindowEx(exStyle,
 			wndClass.lpszClassName,
-			TEXT("Limit Test"), 
-			style, 
-			CW_USEDEFAULT, CW_USEDEFAULT, 
+			TEXT("Limit Test"),
+			style,
+			CW_USEDEFAULT, CW_USEDEFAULT,
 			size.right + (-size.left), size.bottom + (-size.top),
 			NULL, NULL, instance, NULL);
 		if (window)
@@ -62,11 +62,11 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 			SetFocus(window);
 
 			GameMemory gameMemory;
-			gameMemory.PermanentSize = 64 * 1024 * 1024;   // 64kb
-			gameMemory.TransientSize = 128 * 1024 * 1024;  // 128kb
+			gameMemory.PermanentSize = KiloByte(128);
+			gameMemory.TransientSize = KiloByte(256);
 
 			u64 totalSize = gameMemory.PermanentSize + gameMemory.TransientSize;
-			gameMemory.Permanent = VirtualAlloc(0, totalSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+			gameMemory.Permanent = VirtualAlloc(0, (size_t) totalSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 			gameMemory.Transient = ((byte *) gameMemory.Permanent + gameMemory.PermanentSize);
 			
 			bool running = true;

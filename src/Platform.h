@@ -15,6 +15,11 @@
 
 #define Assert(x) if (!(x)) { *(byte *) 0 = 0; }
 
+#define KiloByte(x) (x * 1024LL)
+#define MegaByte(x) (KiloByte(x) * 1024LL)
+#define GigaByte(x) (MegaByte(x) * 1024LL)
+#define TeraByte(x) (GigaByte(x) * 1024LL)
+
 #ifdef LIMIT_INTERNAL
 struct DEBUGFileReadResult
 {
