@@ -3,7 +3,33 @@
 
 #include "Types.h"
 
+// The entire project is built as a single
+// compilation unit (this platform file) which
+// is a very simple way to handle multiple
+// platform support and engine reuse.
+// 
+// If you want to launch a different "project" (game) with
+// the the engine just change the include below.
 #include "Limit.cpp"
+//
+// Every game provides "services" for the platform
+// (e.g. GameUpdateAndRender) (Look in Platform.h)
+// instead of abstracting window handles and methods, etc.
+// (Does the game really need to have any
+// idea what a window is or how to manage it?)
+//
+// The idea is to make it very easy for developers
+// to port to another platform. Basically the platform
+// layer is supposed to ask the game to do stuff instead
+// of the other way around, which creates very complicated
+// and hard to understand code.
+// The only instance where game code calls stuff from the
+// platform layer is for file I/O.
+//
+// To port to another platform just do all the plaform
+// specific stuff in a .cpp (e.g. Mac_Limit.cpp) and
+// call game services where appropriate.
+// Use this Win32 platform layer as an example.
 
 static LRESULT CALLBACK WindowProc(HWND window, u32 message, WPARAM wParam, LPARAM lParam)
 {
@@ -61,6 +87,14 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 		{
 			SetFocus(window);
 
+			// Allocate the memory that the game uses during
+			// execution. Allocating a big chunk at the beginning
+			// of execution makes sure that it has enough memory
+			// to run. While this might be overkill for PC, where
+			// you rarely run out of memory during execution, on
+			// systems with fixed memory (like consoles) this makes
+			// sure that there are no unexpected crashes when
+			// dynamically allocating memory all the time.
 			GameMemory gameMemory;
 			gameMemory.PermanentSize = KiloByte(128);
 			gameMemory.TransientSize = KiloByte(256);
@@ -86,13 +120,17 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 		}
 		else
 		{
-			_tprintf(TEXT("Terminal failure: Unable to create a window.\n GetLastError=%08x\n"), GetLastError());
+			Char buffer[128];
+			_stprintf_s(buffer, TEXT("Terminal failure: Unable to create a window.\n GetLastError=%08x\n"), GetLastError());
+			OutputDebugString(buffer);
 			return -1;
 		}
 	}
 	else
 	{
-		_tprintf(TEXT("Terminal failure: Unable to register internal window class.\n GetLastError=%08x\n"), GetLastError());
+		Char buffer[128];
+		_stprintf_s(buffer, TEXT("Terminal failure: Unable to register internal window class.\n GetLastError=%08x\n"), GetLastError());
+		OutputDebugString(buffer);
 		return -1;
 	}
 

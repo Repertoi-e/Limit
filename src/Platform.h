@@ -50,3 +50,5 @@ inline u32 SafeTruncateU64(u64 value)
 	Assert(value <= 0xFFFFFFFF);
 	return (u32) value;
 }
+
+static void GameUpdateAndRender(GameMemory *memory);

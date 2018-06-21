@@ -24,7 +24,9 @@ static DEBUGFileReadResult DEBUGPlatformReadEntireFile(const Char *filePath)
 				}
 				else
 				{
-					_tprintf(TEXT("Terminal failure: Unable to read from file \"%s\". Maybe the file got truncated in the middle of reading.\n GetLastError=%08x\n"), filePath, GetLastError());
+					Char buffer[125 + MAX_PATH];
+					_stprintf_s(buffer, TEXT("Terminal failure: Unable to read from file \"%ls\". Maybe the file got truncated in the middle of reading.\n GetLastError=%08x\n"), filePath, GetLastError());
+					OutputDebugString(buffer);
 					DEBUGPlatformFreeFileMemory(result.Contents);
 					result.Contents = 0;
 				}
@@ -34,7 +36,9 @@ static DEBUGFileReadResult DEBUGPlatformReadEntireFile(const Char *filePath)
 	}
 	else
 	{
-		_tprintf(TEXT("Terminal failure: Unable to open file \"%s\" for reading.\n"), filePath);
+		Char buffer[57 + MAX_PATH];
+		_stprintf_s(buffer, TEXT("Terminal failure: Unable to open file \"%s\" for reading.\n"), filePath);
+		OutputDebugString(buffer);
 	}
 
 	return result;
@@ -61,13 +65,17 @@ static bool32 DEBUGPlatformWriteEntireFile(const Char *filePath, void *memory, u
 		}
 		else
 		{
-			_tprintf(TEXT("Terminal failure: Unable to write to file \"%s\".\n GetLastError=%08x\n"), filePath, GetLastError());
+			Char buffer[69 + MAX_PATH];
+			_stprintf_s(buffer, TEXT("Terminal failure: Unable to write to file \"%ls\".\n GetLastError=%08x\n"), filePath, GetLastError());
+			OutputDebugString(buffer);
 		}
 		CloseHandle(fileHandle);
 	}
 	else
 	{
-		_tprintf(TEXT("Terminal failure: Unable to open file \"%s\" for writing.\n"), filePath);
+		Char buffer[57 + MAX_PATH];
+		_stprintf_s(buffer, TEXT("Terminal failure: Unable to open file \"%s\" for writing.\n"), filePath);
+		OutputDebugString(buffer);
 	}
 
 	return result;
