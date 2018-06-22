@@ -1,7 +1,5 @@
 #include "Platform.h"
 
-#include <tchar.h>
-
 #ifdef LIMIT_INTERNAL 
 static DEBUGFileReadResult DEBUGPlatformReadEntireFile(const Char *filePath)
 {
@@ -25,7 +23,7 @@ static DEBUGFileReadResult DEBUGPlatformReadEntireFile(const Char *filePath)
 				else
 				{
 					Char buffer[125 + MAX_PATH];
-					_stprintf_s(buffer, TEXT("Terminal failure: Unable to read from file \"%ls\". Maybe the file got truncated in the middle of reading.\n GetLastError=%08x\n"), filePath, GetLastError());
+					_stprintf_s(buffer, sizeof(buffer), TEXT("Terminal failure: Unable to read from file \"%ls\". Maybe the file got truncated in the middle of reading.\n GetLastError=%08x\n"), filePath, GetLastError());
 					OutputDebugString(buffer);
 					DEBUGPlatformFreeFileMemory(result.Contents);
 					result.Contents = 0;
@@ -37,7 +35,7 @@ static DEBUGFileReadResult DEBUGPlatformReadEntireFile(const Char *filePath)
 	else
 	{
 		Char buffer[57 + MAX_PATH];
-		_stprintf_s(buffer, TEXT("Terminal failure: Unable to open file \"%s\" for reading.\n"), filePath);
+		_stprintf_s(buffer, sizeof(buffer), TEXT("Terminal failure: Unable to open file \"%s\" for reading.\n"), filePath);
 		OutputDebugString(buffer);
 	}
 
@@ -66,7 +64,7 @@ static bool32 DEBUGPlatformWriteEntireFile(const Char *filePath, void *memory, u
 		else
 		{
 			Char buffer[69 + MAX_PATH];
-			_stprintf_s(buffer, TEXT("Terminal failure: Unable to write to file \"%ls\".\n GetLastError=%08x\n"), filePath, GetLastError());
+			_stprintf_s(buffer, sizeof(buffer), TEXT("Terminal failure: Unable to write to file \"%ls\".\n GetLastError=%08x\n"), filePath, GetLastError());
 			OutputDebugString(buffer);
 		}
 		CloseHandle(fileHandle);
@@ -74,7 +72,7 @@ static bool32 DEBUGPlatformWriteEntireFile(const Char *filePath, void *memory, u
 	else
 	{
 		Char buffer[57 + MAX_PATH];
-		_stprintf_s(buffer, TEXT("Terminal failure: Unable to open file \"%s\" for writing.\n"), filePath);
+		_stprintf_s(buffer, sizeof(buffer), TEXT("Terminal failure: Unable to open file \"%s\" for writing.\n"), filePath);
 		OutputDebugString(buffer);
 	}
 

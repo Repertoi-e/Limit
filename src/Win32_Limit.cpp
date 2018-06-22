@@ -1,5 +1,6 @@
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "gdi32.lib")
+#pragma comment(lib, "winmm.lib")
 
 #include "Types.h"
 
@@ -54,6 +55,27 @@ static LRESULT CALLBACK WindowProc(HWND window, u32 message, WPARAM wParam, LPAR
 	return DefWindowProc(window, message, wParam, lParam);
 }
 
+static s64 Win32GetPerformanceFrequency()
+{
+	LARGE_INTEGER query;
+	QueryPerformanceFrequency(&query);
+	return query.QuadPart;
+}
+
+static const s64 g_PerformanceFrequency = Win32GetPerformanceFrequency();
+
+inline LARGE_INTEGER Win32GetWallClock()
+{
+	LARGE_INTEGER result;
+	QueryPerformanceCounter(&result);
+	return result;
+}
+
+inline real32 Win32GetSecondsElapsed(LARGE_INTEGER start, LARGE_INTEGER end)
+{
+	return (real32)(end.QuadPart - start.QuadPart) / (real32) g_PerformanceFrequency;
+}
+
 int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 {
 	WNDCLASS wndClass;
@@ -69,6 +91,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 	if (RegisterClass(&wndClass))
 	{
 		int width = 800, height = 600;
+		const Char* windowTitle = TEXT("Limit Test");
 
 		DWORD exStyle = WS_EX_APPWINDOW | WS_EX_WINDOWEDGE;
 		DWORD style = WS_OVERLAPPEDWINDOW | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN;
@@ -78,7 +101,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 
 		HWND window = CreateWindowEx(exStyle,
 			wndClass.lpszClassName,
-			TEXT("Limit Test"),
+			windowTitle,
 			style,
 			CW_USEDEFAULT, CW_USEDEFAULT,
 			size.right + (-size.left), size.bottom + (-size.top),
@@ -103,25 +126,66 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 			gameMemory.Permanent = VirtualAlloc(0, (size_t) totalSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 			gameMemory.Transient = ((byte *) gameMemory.Permanent + gameMemory.PermanentSize);
 			
-			bool running = true;
-			while (running)
+			if (gameMemory.Permanent && gameMemory.Transient)
 			{
-				MSG msg;
-				while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
-				{
-					if (msg.message == WM_QUIT)
-						running = false;
-					TranslateMessage(&msg);
-					DispatchMessage(&msg);
-				}
+				int displayHz = 60; // #Hardcoded
+				int gameUpdateHz = displayHz / 2;
+				real32 targetSecondsPerFrame = 1.f / (real32) gameUpdateHz;
 
-				GameUpdateAndRender(&gameMemory);
+				u32 desiredSchedulerMS = 1;
+				bool hasGranularSleep = timeBeginPeriod(desiredSchedulerMS) == TIMERR_NOERROR;
+				
+				LARGE_INTEGER lastCounter = Win32GetWallClock();
+
+				bool running = true;
+				while (running)
+				{
+					MSG msg;
+					while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+					{
+						if (msg.message == WM_QUIT)
+							running = false;
+						TranslateMessage(&msg);
+						DispatchMessage(&msg);
+					}
+
+					GameUpdateAndRender(&gameMemory);
+
+					LARGE_INTEGER workCounter = Win32GetWallClock();
+					real32 workSecondsElapsed = Win32GetSecondsElapsed(lastCounter, workCounter);
+
+					real32 frameSecondsElapsed = workSecondsElapsed;
+
+					if (frameSecondsElapsed < targetSecondsPerFrame)
+					{
+						if (hasGranularSleep)
+							Sleep((u64) (1000.f * (targetSecondsPerFrame - frameSecondsElapsed)));
+						while (frameSecondsElapsed < targetSecondsPerFrame)
+							frameSecondsElapsed = Win32GetSecondsElapsed(lastCounter, Win32GetWallClock());
+					}
+					else
+					{
+						// #Logging Missed a frame!
+					}
+
+					LARGE_INTEGER elapsedCounter = Win32GetWallClock();
+					{
+						// Display stats in window title
+						real64 fps = (real64) g_PerformanceFrequency / (real64) (elapsedCounter.QuadPart - lastCounter.QuadPart);
+						real32 msPerFrame = Win32GetSecondsElapsed(lastCounter, elapsedCounter) * 1000.f;
+						Char buffer[50];
+						_stprintf_s(buffer, sizeof(buffer), TEXT("%s | %.02fms/f,   %.02ff/s\n"), windowTitle, msPerFrame, fps);
+						SetWindowText(window, buffer);
+					}
+
+					lastCounter = elapsedCounter;
+				}
 			}
 		}
 		else
 		{
 			Char buffer[128];
-			_stprintf_s(buffer, TEXT("Terminal failure: Unable to create a window.\n GetLastError=%08x\n"), GetLastError());
+			_stprintf_s(buffer, sizeof(buffer), TEXT("Terminal failure: Unable to create a window.\n GetLastError=%08x\n"), GetLastError());
 			OutputDebugString(buffer);
 			return -1;
 		}
@@ -129,7 +193,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 	else
 	{
 		Char buffer[128];
-		_stprintf_s(buffer, TEXT("Terminal failure: Unable to register internal window class.\n GetLastError=%08x\n"), GetLastError());
+		_stprintf_s(buffer, sizeof(buffer), TEXT("Terminal failure: Unable to register internal window class.\n GetLastError=%08x\n"), GetLastError());
 		OutputDebugString(buffer);
 		return -1;
 	}

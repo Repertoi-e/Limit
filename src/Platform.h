@@ -6,6 +6,8 @@
 #define NOMINMAX
 #undef NOGDI
 #include <Windows.h>
+#include <TimeAPI.h>
+#include <tchar.h>
 #define NOGDI
 #else
 #error Unsupported platform!
