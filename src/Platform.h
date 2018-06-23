@@ -6,7 +6,6 @@
 #define NOMINMAX
 #undef NOGDI
 #include <Windows.h>
-#include <TimeAPI.h>
 #include <tchar.h>
 #define NOGDI
 #else
@@ -22,6 +21,8 @@
 #define GigaByte(x) (MegaByte(x) * 1024LL)
 #define TeraByte(x) (GigaByte(x) * 1024LL)
 
+#define M_PI 3.14159265358979323846f
+
 #ifdef LIMIT_INTERNAL
 struct DEBUGFileReadResult
 {
@@ -33,24 +34,8 @@ static void DEBUGPlatformFreeFileMemory(void *memory);
 static bool32 DEBUGPlatformWriteEntireFile(const Char *filePath, void *memory, u32 memorySize);
 #endif
 
-struct GameMemory
-{
-	void *Permanent;
-	u64 PermanentSize;
-	
-	void *Transient;
-	u64 TransientSize;
-};
-
-struct GameState
-{
-	bool IsInitialized;
-};
-
 inline u32 SafeTruncateU64(u64 value)
 {
 	Assert(value <= 0xFFFFFFFF);
 	return (u32) value;
 }
-
-static void GameUpdateAndRender(GameMemory *memory);
