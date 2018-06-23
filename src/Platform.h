@@ -30,9 +30,15 @@ struct DEBUGFileReadResult
 	void *Contents;
 	u32 ContentsSize;
 };
-static DEBUGFileReadResult DEBUGPlatformReadEntireFile(const Char *filePath);
-static void DEBUGPlatformFreeFileMemory(void *memory);
-static bool32 DEBUGPlatformWriteEntireFile(const Char *filePath, void *memory, u32 memorySize);
+
+#define DEBUG_PLATFORM_FREE_FILE_MEMORY(name) void name(void *memory)
+typedef DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemoryFunc);
+
+#define DEBUG_PLATFORM_READ_ENTIRE_FILE(name) DEBUGFileReadResult name(const Char *filePath)
+typedef DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFileFunc);
+
+#define DEBUG_PLATFORM_WRITE_ENTIRE_FILE(name) bool32 name(const Char *filePath, void *memory, u32 memorySize)
+typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFileFunc);
 #endif
 
 inline u32 SafeTruncateU64(u64 value)

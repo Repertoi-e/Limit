@@ -14,10 +14,10 @@ typedef DIRECT_SOUND_CREATE(DirectSoundCreateFunc);
 static void Win32InitDSound(HWND Window, s32 SamplesPerSecond, s32 BufferSize)
 {
 	// Load the library
-	HMODULE DSoundLibrary = LoadLibraryA("dsound.dll");
-	if (DSoundLibrary)
+	HMODULE dsoundDLL = LoadLibrary(TEXT("dsound.dll"));
+	if (dsoundDLL)
 	{
-		DirectSoundCreateFunc *directSoundCreate = (DirectSoundCreateFunc *) GetProcAddress(DSoundLibrary, "DirectSoundCreate");
+		DirectSoundCreateFunc *directSoundCreate = (DirectSoundCreateFunc *) GetProcAddress(dsoundDLL, "DirectSoundCreate");
 
 		LPDIRECTSOUND directSound;
 		if (directSoundCreate && SUCCEEDED(directSoundCreate(0, &directSound, 0)))

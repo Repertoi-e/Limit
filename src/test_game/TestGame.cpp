@@ -21,43 +21,45 @@ static void RenderWeirdGradient(const GameOffscreenBuffer& buffer, int xOffset, 
 	}
 }
 
-static void GameUpdateAndRender(const GameMemory& memory, const GameOffscreenBuffer& screenBuffer)
+/* arg1: const GameMemory& memory, arg2: const GameOffscreenBuffer& screenBuffer */
+extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
-	GameState *state = (GameState *) memory.Permanent;
+	GameState *state = (GameState *) gameMemory.Permanent;
 	if (!state->IsInitialized)
 	{
 		state->IsInitialized = true;
 		/* Code that runs on game intitialization */
 
-		auto[contents, contentsSize] = DEBUGPlatformReadEntireFile(TEXT(__FILE__));
+		auto[contents, contentsSize] = gameMemory.DEBUGPlatformReadEntireFile(TEXT(__FILE__));
 		if (contents)
 		{
-			DEBUGPlatformWriteEntireFile(TEXT("test.out"), contents, contentsSize);
-			DEBUGPlatformFreeFileMemory(contents);
+			gameMemory.DEBUGPlatformWriteEntireFile(TEXT("test.out"), contents, contentsSize);
+			gameMemory.DEBUGPlatformFreeFileMemory(contents);
 		}
 		state->ToneHz = 512;
+		state->tSine = 0.0f;
 	}
 	RenderWeirdGradient(screenBuffer, 0, 0);
 }
 
-static void GameGetSoundSamples(const GameMemory& memory, const GameSoundOutputBuffer& soundOutput)
+/* arg1: const GameMemory& memory, arg2: const GameSoundOutputBuffer& soundOutput */
+extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
 {
-	GameState *state = (GameState *) memory.Permanent;
+	GameState *state = (GameState *) gameMemory.Permanent;
 
-	static real32 tSine = 0.0f;
 	s16 toneVolume = 3000;
 	real32 wavePeriod = (real32) soundOutput.SamplesPerSecond / state->ToneHz;
 
 	s16 *sampleOut = soundOutput.Samples;
 	for (int i = 0; i < soundOutput.SampleCount; ++i)
 	{
-		real32 sine = sinf(tSine);
+		real32 sine = sinf(state->tSine);
 		s16 sampleValue = (s16) (sine * toneVolume);
 		*sampleOut++ = sampleValue;
 		*sampleOut++ = sampleValue;
 
-		tSine += 2.f * M_PI * (1.f / wavePeriod);
-		if (tSine > (2.f * M_PI))
-			tSine -= (2.f * M_PI);
+		state->tSine += 2.f * M_PI * (1.f / wavePeriod);
+		if (state->tSine > (2.f * M_PI))
+			state->tSine -= (2.f * M_PI);
 	}
 }

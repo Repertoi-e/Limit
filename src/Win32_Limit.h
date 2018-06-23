@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Platform.h"
+#include "Limit.h"
 
 struct Win32WindowDimension
 {
@@ -15,4 +15,12 @@ struct Win32OffscreenBuffer
 	int Width, Height;
 	int Pitch;
 	int BytesPerPixel;
+};
+
+struct Win32GameCode
+{
+	HMODULE DLL;
+	GameUpdateAndRenderFunc *UpdateAndRender;
+	GameGetSoundSamplesFunc *GetSoundSamples;
+	bool IsValid;
 };

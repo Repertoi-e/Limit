@@ -2,12 +2,6 @@
 #pragma comment(lib, "gdi32.lib")
 #pragma comment(lib, "winmm.lib")
 
-#include "Types.h"
-
-// If you want to launch a different "project" (game) with
-// the the engine just change the include below.
-#include "test_game/TestGame.cpp"
-//
 // Every game provides "services" for the platform
 // (e.g. GameUpdateAndRender) (Look in Platform.h)
 // instead of abstracting window handles and methods, etc.
@@ -21,11 +15,11 @@
 // and straightforward. The only instance when game
 // code calls stuff from the platform layer is for file I/O.
 
-#include <TimeAPI.h>
-
 #include "Win32_Limit.h"
 #include "Win32_FileIO.cpp"
 #include "Win32_Sound.cpp"
+
+#include <TimeAPI.h>
 
 static Win32OffscreenBuffer g_BackBuffer;
 
@@ -72,6 +66,43 @@ static void Win32DisplayBufferInWindow(const Win32OffscreenBuffer& buffer, HDC h
 		SRCCOPY);
 }
 
+// Compile game code separately from engine
+// to allow code recompilation on the fly.
+// Change global variable below to match game dll.
+const Char *const g_GameDLL = TEXT("TestGame.dll");
+
+static Win32GameCode Win32LoadGameCode()
+{
+	Win32GameCode result = {};
+
+	result.DLL = LoadLibrary(g_GameDLL);
+	if (result.DLL)
+	{
+		result.UpdateAndRender = (GameUpdateAndRenderFunc *) GetProcAddress(result.DLL, "GameUpdateAndRender");
+		result.GetSoundSamples = (GameGetSoundSamplesFunc *) GetProcAddress(result.DLL, "GameGetSoundSamples");
+		result.IsValid = result.UpdateAndRender && result.GetSoundSamples;
+	}
+
+	if (!result.IsValid)
+	{
+		result.UpdateAndRender = GameUpdateAndRenderStub;
+		result.GetSoundSamples = GameGetSoundSamplesStub;
+	}
+	return result;
+}
+
+static void Win32UnloadGameCode(Win32GameCode& gameCode)
+{
+	if (gameCode.DLL)
+	{
+		FreeLibrary(gameCode.DLL);
+		gameCode.DLL = 0;
+	}
+
+	gameCode.IsValid = false;
+	gameCode.UpdateAndRender = GameUpdateAndRenderStub;
+	gameCode.GetSoundSamples = GameGetSoundSamplesStub;
+}
 
 static LRESULT CALLBACK WindowProc(HWND window, u32 message, WPARAM wParam, LPARAM lParam)
 {
@@ -169,12 +200,20 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 			gameMemory.Permanent = VirtualAlloc(0, (size_t) totalSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 			gameMemory.Transient = ((byte *) gameMemory.Permanent + gameMemory.PermanentSize);
 
+			gameMemory.DEBUGPlatformFreeFileMemory = DEBUGPlatformFreeFileMemory;
+			gameMemory.DEBUGPlatformReadEntireFile = DEBUGPlatformReadEntireFile;
+			gameMemory.DEBUGPlatformWriteEntireFile = DEBUGPlatformWriteEntireFile;
+
 			if (gameMemory.Permanent && gameMemory.Transient)
 			{
 				// #Hardcoded
 			#define DISPLAY_HZ     (60) 
 			#define GAME_UPDATE_HZ (DISPLAY_HZ / 2)
 				const real32 targetSecondsPerFrame = 1.f / (real32) GAME_UPDATE_HZ;
+
+			// #define SOUND_DEBUG_INFO
+
+				Win32GameCode game = Win32LoadGameCode();
 
 				const u32 desiredSchedulerMS = 1;
 				const bool hasGranularSleep = timeBeginPeriod(desiredSchedulerMS) == TIMERR_NOERROR;
@@ -192,8 +231,10 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 				g_SecondarySoundBuffer->Play(0, 0, DSBPLAY_LOOPING);
 
 				s16 *soundSamples = (s16 *) VirtualAlloc(0, soundOutput.SecondaryBufferSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+			#if defined SOUND_DEBUG_INFO
 				u32 audioLatencyBytes;
 				real32 audioLatencySeconds;
+			#endif
 				bool32 validSound = false;
 
 				HDC hdc = GetDC(window);
@@ -221,7 +262,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 						screenBuffer.Height = g_BackBuffer.Height;
 						screenBuffer.Pitch = g_BackBuffer.Pitch;
 					}
-					GameUpdateAndRender(gameMemory, screenBuffer);
+					game.UpdateAndRender(gameMemory, screenBuffer);
 
 					/* Sound */
 					LARGE_INTEGER audioWallClock = Win32GetWallClock();
@@ -290,12 +331,12 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 							soundBuffer.SampleCount = bytesToWrite / soundOutput.BytesPerSample;
 							soundBuffer.Samples = soundSamples;
 						}
-						GameGetSoundSamples(gameMemory, soundBuffer);
-					#if LIMIT_INTERNAL
+						game.GetSoundSamples(gameMemory, soundBuffer);
+						
+					#if defined SOUND_DEBUG_INFO
 						u32 UnwrappedWriteCursor = writeCursor;
 						if (UnwrappedWriteCursor < playCursor)
 							UnwrappedWriteCursor += soundOutput.SecondaryBufferSize;
-
 						audioLatencyBytes = (UnwrappedWriteCursor - playCursor);
 						audioLatencySeconds = (((real32) audioLatencyBytes / (real32) soundOutput.BytesPerSample) / (real32) soundOutput.SamplesPerSecond);
 
@@ -315,34 +356,17 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 					real32 workSecondsElapsed = Win32GetSecondsElapsed(lastCounter, workCounter);
 
 					real32 frameSecondsElapsed = workSecondsElapsed;
-					int whiles = 0;
-					u32 sleepMS = 0;
-					real32 slept = 0.f;
 
 					if (frameSecondsElapsed < targetSecondsPerFrame)
 					{
-						LARGE_INTEGER beforeSleep = Win32GetWallClock();
 						if (hasGranularSleep)
 						{
-							sleepMS = (u32) (1000.f * (targetSecondsPerFrame - frameSecondsElapsed));
+							u32 sleepMS = (u32) (1000.f * (targetSecondsPerFrame - frameSecondsElapsed));
 							if (sleepMS > 1)
 								Sleep(sleepMS - 1);
 						}
-						LARGE_INTEGER afterSleep = Win32GetWallClock();
-						slept = Win32GetSecondsElapsed(beforeSleep, afterSleep);
-
-						real32 testSecondsElapsedForFrame = Win32GetSecondsElapsed(lastCounter, Win32GetWallClock());
-						if (testSecondsElapsedForFrame < targetSecondsPerFrame)
-						{
-							_stprintf_s(LogMessage, sizeof(LogMessage), TEXT("Missed sleep."));
-							OutputDebugString(LogMessage);
-						}
-
 						while (frameSecondsElapsed < targetSecondsPerFrame)
-						{
 							frameSecondsElapsed = Win32GetSecondsElapsed(lastCounter, Win32GetWallClock());
-							++whiles;
-						}
 					}
 					else
 					{
@@ -361,7 +385,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 
 					// Display stats in window title
 					real64 fps = 1000.0f / msPerFrame;
-					_stprintf_s(LogMessage, sizeof(LogMessage), TEXT("%s | %.02fms/f, %.02ff/s, (%.02fws/f) whiles=%d sleepms=%d, slept=%.02fms\n"), windowTitle, msPerFrame, fps, workSecondsElapsed * 1000.0f, whiles, sleepMS, slept * 1000.0f);
+					_stprintf_s(LogMessage, sizeof(LogMessage), TEXT("%s | %.02fms/f, %.02ff/s, (%.02fws/f)\n"), windowTitle, msPerFrame, fps, workSecondsElapsed * 1000.0f);
 					SetWindowText(window, LogMessage);
 				}
 			}

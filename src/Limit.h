@@ -11,12 +11,17 @@ struct GameMemory
 
 	void *Transient;
 	u64 TransientSize;
+
+	DEBUGPlatformFreeFileMemoryFunc *DEBUGPlatformFreeFileMemory;
+	DEBUGPlatformReadEntireFileFunc *DEBUGPlatformReadEntireFile;
+	DEBUGPlatformWriteEntireFileFunc *DEBUGPlatformWriteEntireFile;
 };
 
 struct GameState
 {
 	int ToneHz;
 	bool IsInitialized;
+	real32 tSine;
 };
 
 struct GameOffscreenBuffer
@@ -34,6 +39,15 @@ struct GameSoundOutputBuffer
 	s16 *Samples;
 };
 
-static void GameUpdateAndRender(const GameMemory& memory, const GameOffscreenBuffer& screenBuffer);
+/* arg1: const GameMemory& gameMemory, arg2: const GameOffscreenBuffer& screenBuffer */
+#define GAME_UPDATE_AND_RENDER(name) void name(const GameMemory& gameMemory, const GameOffscreenBuffer& screenBuffer)
+typedef GAME_UPDATE_AND_RENDER(GameUpdateAndRenderFunc);
+GAME_UPDATE_AND_RENDER(GameUpdateAndRenderStub)
+{}
+
 // At the moment, this has to be a very fast function it cannot be more than a millisecond or so.
-static void GameGetSoundSamples(const GameMemory& memory, const GameSoundOutputBuffer& soundOutput);
+/* arg1: const GameMemory& gameMemory, arg2: const GameSoundOutputBuffer& soundOutput */
+#define GAME_GET_SOUND_SAMPLES(name) void name(const GameMemory& gameMemory, const GameSoundOutputBuffer& soundOutput)
+typedef GAME_GET_SOUND_SAMPLES(GameGetSoundSamplesFunc);
+GAME_GET_SOUND_SAMPLES(GameGetSoundSamplesStub)
+{}

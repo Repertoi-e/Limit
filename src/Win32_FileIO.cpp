@@ -1,7 +1,14 @@
 #include "Platform.h"
 
 #ifdef LIMIT_INTERNAL 
-static DEBUGFileReadResult DEBUGPlatformReadEntireFile(const Char *filePath)
+
+DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory)
+{
+	if (memory)
+		VirtualFree(memory, 0, MEM_RELEASE);
+}
+
+DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile)
 {
 	DEBUGFileReadResult result = {};
 
@@ -42,13 +49,7 @@ static DEBUGFileReadResult DEBUGPlatformReadEntireFile(const Char *filePath)
 	return result;
 }
 
-static void DEBUGPlatformFreeFileMemory(void *memory)
-{
-	if (memory)
-		VirtualFree(memory, 0, MEM_RELEASE);
-}
-
-static bool32 DEBUGPlatformWriteEntireFile(const Char *filePath, void *memory, u32 memorySize)
+DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
 {
 	bool32 result = 0;
 
