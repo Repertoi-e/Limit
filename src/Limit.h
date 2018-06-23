@@ -17,6 +17,14 @@ struct GameState
 	bool IsInitialized;
 };
 
+struct GameOffscreenBuffer
+{
+	//NOTE: Pixels are always 32bit wide
+	void* Memory;
+	int Width, Height;
+	int Pitch;
+};
+
 struct GameSoundOutputBuffer
 {
 	int SamplesPerSecond;
@@ -24,6 +32,6 @@ struct GameSoundOutputBuffer
 	s16 *Samples;
 };
 
-static void GameUpdateAndRender(const GameMemory& memory);
+static void GameUpdateAndRender(const GameMemory& memory, const GameOffscreenBuffer& screenBuffer);
 // At the moment, this has to be a very fast function it cannot be more than a millisecond or so.
 static void GameGetSoundSamples(const GameMemory& memory, const GameSoundOutputBuffer& soundOutput);

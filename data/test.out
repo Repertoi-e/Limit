@@ -3,11 +3,33 @@
 
 #include "Win32_FileIO.cpp"
 
-static void GameUpdateAndRender(const GameMemory& memory)
+static void RenderWeirdGradient(const GameOffscreenBuffer& buffer, int xOffset, int yOffset)
+{
+	byte *row = (byte *) buffer.Memory;
+	for (int y = 0; y < buffer.Height; ++y)
+	{
+		u32 *pixel = (u32 *) row;
+		for (int x = 0; x < buffer.Width; ++x)
+		{
+			byte green = (byte) (y + yOffset);
+			byte blue = (byte) (x + xOffset);
+			/*
+			Memory:   BB GG RR xx
+			Register: xx RR GG BB
+			Pixel (32-bits)
+			*/
+			*pixel++ = (green << 8) | blue;
+		}
+		row += buffer.Pitch;
+	}
+}
+
+static void GameUpdateAndRender(const GameMemory& memory, const GameOffscreenBuffer& screenBuffer)
 {
 	GameState *state = (GameState *) memory.Permanent;
 	if (!state->IsInitialized)
 	{
+		state->IsInitialized = true;
 		/* Code that runs on game intitialization */
 
 		auto[contents, contentsSize] = DEBUGPlatformReadEntireFile(TEXT(__FILE__));
@@ -17,9 +39,8 @@ static void GameUpdateAndRender(const GameMemory& memory)
 			DEBUGPlatformFreeFileMemory(contents);
 		}
 		state->ToneHz = 512;
-
-		state->IsInitialized = true;
 	}
+	RenderWeirdGradient(screenBuffer, 0, 0);
 }
 
 static void GameGetSoundSamples(const GameMemory& memory, const GameSoundOutputBuffer& soundOutput)

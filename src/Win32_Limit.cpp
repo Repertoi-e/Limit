@@ -23,7 +23,54 @@
 
 #include <TimeAPI.h>
 
+#include "Win32_Limit.h"
 #include "Win32_Sound.cpp"
+
+static Win32OffscreenBuffer g_BackBuffer;
+
+static Win32WindowDimension Win32GetWindowDimension(HWND window)
+{
+	RECT rect;
+	GetClientRect(window, &rect);
+	return { rect.right - rect.left, rect.bottom - rect.top };
+}
+
+static void Win32ResizeDIBSection(Win32OffscreenBuffer& buffer, int width, int height)
+{
+	if (buffer.Memory)
+		VirtualFree(buffer.Memory, 0, MEM_RELEASE);
+
+	buffer.Width = width;
+	buffer.Height = height;
+	buffer.BytesPerPixel = 4;
+	{
+		buffer.Info.bmiHeader.biSize = sizeof(buffer.Info.bmiHeader);
+		buffer.Info.bmiHeader.biWidth = buffer.Width;
+		buffer.Info.bmiHeader.biHeight = -buffer.Height; //negative is top-down, positive is bottom-up
+		buffer.Info.bmiHeader.biPlanes = 1;
+		buffer.Info.bmiHeader.biBitCount = 32;
+		buffer.Info.bmiHeader.biCompression = BI_RGB;
+	}
+
+	buffer.Memory = VirtualAlloc(0, buffer.Width * buffer.Height * buffer.BytesPerPixel, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+	buffer.Pitch = width * buffer.BytesPerPixel;
+
+	// #TODO Probably clear this to black
+}
+
+static void Win32DisplayBufferInWindow(const Win32OffscreenBuffer& buffer, HDC hdc, int width, int height)
+{
+	//TODO: aspect ratio coeection
+	//TODO: Play with strech modes
+	StretchDIBits(hdc,
+		0, 0, width, height, //X, Y, Width, Height,
+		0, 0, buffer.Width, buffer.Height, //X, Y, Width, Height,
+		buffer.Memory,
+		&buffer.Info,
+		DIB_RGB_COLORS,
+		SRCCOPY);
+}
+
 
 static LRESULT CALLBACK WindowProc(HWND window, u32 message, WPARAM wParam, LPARAM lParam)
 {
@@ -38,10 +85,9 @@ static LRESULT CALLBACK WindowProc(HWND window, u32 message, WPARAM wParam, LPAR
 		PAINTSTRUCT paint;
 		HDC hdc = BeginPaint(window, &paint);
 
-		int width = paint.rcPaint.right - paint.rcPaint.left;
-		int height = paint.rcPaint.bottom - paint.rcPaint.top;
+		Win32WindowDimension dimension = Win32GetWindowDimension(window);
+		Win32DisplayBufferInWindow(g_BackBuffer, hdc, dimension.Width, dimension.Height);
 
-		PatBlt(hdc, paint.rcPaint.left, paint.rcPaint.top, width, height, BLACKNESS);
 		EndPaint(window, &paint);
 	} return 0;
 	}
@@ -93,6 +139,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 
 		RECT size = { 0, 0, width, height };
 		AdjustWindowRectEx(&size, style, false, exStyle);
+		Win32ResizeDIBSection(g_BackBuffer, width, height);
 
 		HWND window = CreateWindowEx(exStyle,
 			wndClass.lpszClassName,
@@ -124,7 +171,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 			if (gameMemory.Permanent && gameMemory.Transient)
 			{
 				// #Hardcoded
-			#define DISPLAY_HZ (60) 
+			#define DISPLAY_HZ     (60) 
 			#define GAME_UPDATE_HZ (DISPLAY_HZ / 2)
 				const real32 targetSecondsPerFrame = 1.f / (real32) GAME_UPDATE_HZ;
 
@@ -148,6 +195,8 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 				real32 audioLatencySeconds;
 				bool32 validSound = false;
 
+				HDC hdc = GetDC(window);
+
 				LARGE_INTEGER lastCounter = Win32GetWallClock();
 				LARGE_INTEGER flipWallClock = lastCounter;
 
@@ -163,7 +212,15 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 						DispatchMessage(&msg);
 					}
 
-					GameUpdateAndRender(gameMemory);
+					GameOffscreenBuffer screenBuffer;
+					ZeroMemory(&screenBuffer, sizeof(GameOffscreenBuffer));
+					{
+						screenBuffer.Memory = g_BackBuffer.Memory;
+						screenBuffer.Width = g_BackBuffer.Width;
+						screenBuffer.Height = g_BackBuffer.Height;
+						screenBuffer.Pitch = g_BackBuffer.Pitch;
+					}
+					GameUpdateAndRender(gameMemory, screenBuffer);
 
 					/* Sound */
 					LARGE_INTEGER audioWallClock = Win32GetWallClock();
@@ -295,7 +352,9 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 					real32 msPerFrame = 1000.f * Win32GetSecondsElapsed(lastCounter, endCounter);
 					lastCounter = endCounter;
 
-					// #TODO: Flip here
+					// Flip here
+					Win32WindowDimension dimension = Win32GetWindowDimension(window);
+					Win32DisplayBufferInWindow(g_BackBuffer, hdc, dimension.Width, dimension.Height);
 
 					flipWallClock = Win32GetWallClock();
 
