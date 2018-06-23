@@ -1,7 +1,4 @@
 #include "Limit.h"
-#include "Platform.h"
-
-#include "Win32_FileIO.cpp"
 
 static void RenderWeirdGradient(const GameOffscreenBuffer& buffer, int xOffset, int yOffset)
 {

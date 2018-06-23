@@ -6,7 +6,7 @@
 
 // If you want to launch a different "project" (game) with
 // the the engine just change the include below.
-#include "Limit.cpp"
+#include "test_game/TestGame.cpp"
 //
 // Every game provides "services" for the platform
 // (e.g. GameUpdateAndRender) (Look in Platform.h)
@@ -24,6 +24,7 @@
 #include <TimeAPI.h>
 
 #include "Win32_Limit.h"
+#include "Win32_FileIO.cpp"
 #include "Win32_Sound.cpp"
 
 static Win32OffscreenBuffer g_BackBuffer;

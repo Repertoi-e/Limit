@@ -1,6 +1,8 @@
 #pragma once
 
-#include "Types.h"
+#include "Platform.h"
+
+/* Game Services */
 
 struct GameMemory
 {
@@ -19,7 +21,7 @@ struct GameState
 
 struct GameOffscreenBuffer
 {
-	//NOTE: Pixels are always 32bit wide
+	// Pixels are always 32bit wide
 	void* Memory;
 	int Width, Height;
 	int Pitch;

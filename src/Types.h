@@ -20,7 +20,7 @@ using byte = u8;
 using wchar = wchar_t;
 using wbyte = wchar;
 
-// Contains either: 0 - false, 
+// Stores either: 0 - false, 
 //	or anything else - true
 using bool32 = int;
 

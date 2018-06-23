@@ -23,6 +23,7 @@
 
 #define M_PI 3.14159265358979323846f
 
+// Debug File I/O
 #ifdef LIMIT_INTERNAL
 struct DEBUGFileReadResult
 {
