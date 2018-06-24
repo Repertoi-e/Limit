@@ -26,14 +26,11 @@ using bool32 = int;
 
 // String unicode typedef
 #include <string>
-#include <string_view>
 
 #if defined UNICODE || defined _UNICODE
 using String = std::wstring;
-using StringView = std::wstring_view;
 using Char = wchar;
 #else
 using String = std::string;
-using StringView = std::string_view;
 using Char = char;
 #endif

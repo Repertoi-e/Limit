@@ -1,4 +1,4 @@
-#include "Limit.h"
+#include "../Limit.h"
 
 static void RenderWeirdGradient(const GameOffscreenBuffer& buffer, int xOffset, int yOffset)
 {
@@ -21,8 +21,7 @@ static void RenderWeirdGradient(const GameOffscreenBuffer& buffer, int xOffset, 
 	}
 }
 
-/* arg1: const GameMemory& memory, arg2: const GameOffscreenBuffer& screenBuffer */
-extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
+EXPORT GAME_UPDATE_AND_RENDER(GameUpdateAndRender /*const GameMemory& gameMemory, const GameOffscreenBuffer& screenBuffer*/)
 {
 	GameState *state = (GameState *) gameMemory.Permanent;
 	if (!state->IsInitialized)
@@ -30,20 +29,22 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		state->IsInitialized = true;
 		/* Code that runs on game intitialization */
 
+	#if 0
+		// Test debug file I/O
 		auto[contents, contentsSize] = gameMemory.DEBUGPlatformReadEntireFile(TEXT(__FILE__));
 		if (contents)
 		{
 			gameMemory.DEBUGPlatformWriteEntireFile(TEXT("test.out"), contents, contentsSize);
 			gameMemory.DEBUGPlatformFreeFileMemory(contents);
 		}
+	#endif
 		state->ToneHz = 512;
 		state->tSine = 0.0f;
 	}
 	RenderWeirdGradient(screenBuffer, 0, 0);
 }
 
-/* arg1: const GameMemory& memory, arg2: const GameSoundOutputBuffer& soundOutput */
-extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
+EXPORT GAME_GET_SOUND_SAMPLES(GameGetSoundSamples /* const GameMemory& memory, const GameSoundOutputBuffer& soundOutput */)
 {
 	GameState *state = (GameState *) gameMemory.Permanent;
 

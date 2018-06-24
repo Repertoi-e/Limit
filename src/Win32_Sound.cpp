@@ -3,7 +3,7 @@
 #include "Platform.h"
 #include "Limit.h"
 
-#include <Mmreg.h>
+#include <mmreg.h>
 #include <dsound.h>
 
 static LPDIRECTSOUNDBUFFER g_SecondarySoundBuffer;

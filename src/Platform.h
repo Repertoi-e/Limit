@@ -8,6 +8,7 @@
 #include <Windows.h>
 #include <tchar.h>
 #define NOGDI
+#define EXPORT __declspec(dllexport)
 #else
 #error Unsupported platform!
 #endif
