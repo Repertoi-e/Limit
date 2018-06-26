@@ -12,7 +12,7 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile)
 {
 	DEBUGFileReadResult result = {};
 
-	HANDLE fileHandle = CreateFile(filePath, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+	HANDLE fileHandle = CreateFile(fileName, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
 	if (fileHandle != INVALID_HANDLE_VALUE)
 	{
 		LARGE_INTEGER fileSize;
@@ -30,7 +30,7 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile)
 				else
 				{
 					Char buffer[125 + MAX_PATH];
-					_stprintf_s(buffer, 125 + MAX_PATH, TEXT("Terminal failure: Unable to read from file \"%ls\". Maybe the file got truncated in the middle of reading.\n GetLastError=%08x\n"), filePath, GetLastError());
+					_stprintf_s(buffer, 125 + MAX_PATH, TEXT("Terminal failure: Unable to read from file \"%ls\". Maybe the file got truncated in the middle of reading.\n GetLastError=%08x\n"), fileName, GetLastError());
 					OutputDebugString(buffer);
 					DEBUGPlatformFreeFileMemory(result.Contents);
 					result.Contents = 0;
@@ -42,7 +42,7 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile)
 	else
 	{
 		Char buffer[57 + MAX_PATH];
-		_stprintf_s(buffer, 57 + MAX_PATH, TEXT("Terminal failure: Unable to open file \"%s\" for reading.\n"), filePath);
+		_stprintf_s(buffer, 57 + MAX_PATH, TEXT("Terminal failure: Unable to open file \"%s\" for reading.\n"), fileName);
 		OutputDebugString(buffer);
 	}
 
@@ -53,7 +53,7 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
 {
 	bool32 result = 0;
 
-	HANDLE fileHandle = CreateFile(filePath, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
+	HANDLE fileHandle = CreateFile(fileName, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
 	if (fileHandle != INVALID_HANDLE_VALUE)
 	{
 		DWORD bytesWritten;
@@ -65,7 +65,7 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
 		else
 		{
 			Char buffer[69 + MAX_PATH];
-			_stprintf_s(buffer, 69 + MAX_PATH, TEXT("Terminal failure: Unable to write to file \"%ls\".\n GetLastError=%08x\n"), filePath, GetLastError());
+			_stprintf_s(buffer, 69 + MAX_PATH, TEXT("Terminal failure: Unable to write to file \"%ls\".\n GetLastError=%08x\n"), fileName, GetLastError());
 			OutputDebugString(buffer);
 		}
 		CloseHandle(fileHandle);
@@ -73,7 +73,7 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
 	else
 	{
 		Char buffer[57 + MAX_PATH];
-		_stprintf_s(buffer, 57 + MAX_PATH, TEXT("Terminal failure: Unable to open file \"%s\" for writing.\n"), filePath);
+		_stprintf_s(buffer, 57 + MAX_PATH, TEXT("Terminal failure: Unable to open file \"%s\" for writing.\n"), fileName);
 		OutputDebugString(buffer);
 	}
 

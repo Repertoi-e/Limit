@@ -1,7 +1,7 @@
 @echo off
 
 set DEFINES=/D "WIN32" /D "UNICODE" /D "_UNICODE" 
-set COMPILER_SWITCHES=/std:c++17 /EHsc- /EHa- /W4 /wd4100 /wd4706 /GR- /FC /nologo
+set COMPILER_SWITCHES=/std:c++17 /EHsc- /EHa- /W4 /wd4100 /wd4706 /wd4189 /GR- /FC /nologo
 set LINKER_SWITCHES=/OPT:REF /INCREMENTAL:NO
 
 set DEBUG=%1
@@ -12,7 +12,7 @@ IF "%DEBUG%" == "DEBUG" (
 )
 :: #TODO: Optimized build when DEBUG is not specified
 
-echo ^>--------- Build started ---------^<
+echo ^>--------- Build started ----------^<
 
 IF NOT EXIST bin\ mkdir bin\
 pushd bin\

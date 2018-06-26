@@ -16,6 +16,7 @@
 #include "Types.h"
 
 #define Assert(x) if (!(x)) { *(byte *) 0 = 0; }
+#define ArrayCount(x) (sizeof(x) / sizeof(x[0]))
 
 #define KiloByte(x) (x * 1024LL)
 #define MegaByte(x) (KiloByte(x) * 1024LL)
@@ -35,10 +36,10 @@ struct DEBUGFileReadResult
 #define DEBUG_PLATFORM_FREE_FILE_MEMORY(name) void name(void *memory)
 typedef DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemoryFunc);
 
-#define DEBUG_PLATFORM_READ_ENTIRE_FILE(name) DEBUGFileReadResult name(const Char *filePath)
+#define DEBUG_PLATFORM_READ_ENTIRE_FILE(name) DEBUGFileReadResult name(const Char *fileName)
 typedef DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFileFunc);
 
-#define DEBUG_PLATFORM_WRITE_ENTIRE_FILE(name) bool32 name(const Char *filePath, void *memory, u32 memorySize)
+#define DEBUG_PLATFORM_WRITE_ENTIRE_FILE(name) bool32 name(const Char *fileName, void *memory, u32 memorySize)
 typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFileFunc);
 #endif
 

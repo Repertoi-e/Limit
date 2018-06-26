@@ -22,6 +22,8 @@ struct GameState
 	int ToneHz;
 	bool IsInitialized;
 	real32 tSine;
+
+	int PlayerX, PlayerY;
 };
 
 struct GameOffscreenBuffer
@@ -30,6 +32,7 @@ struct GameOffscreenBuffer
 	void* Memory;
 	int Width, Height;
 	int Pitch;
+	int BytesPerPixel;
 };
 
 struct GameSoundOutputBuffer
@@ -39,11 +42,33 @@ struct GameSoundOutputBuffer
 	s16 *Samples;
 };
 
-/* arg1: const GameMemory& gameMemory, arg2: const GameOffscreenBuffer& screenBuffer */
-#define GAME_UPDATE_AND_RENDER(name) void name(const GameMemory& gameMemory, const GameOffscreenBuffer& screenBuffer)
+struct GameButtonState
+{
+	int HalfTransitionCount;
+	bool32 EndedDown;
+};
+
+struct GameInput
+{
+	int MouseX, MouseY;
+	GameButtonState MouseButtons[5]; // In order: LB, MB, RB, X1, X2
+
+	union
+	{
+		GameButtonState Buttons[4];
+		struct
+		{
+			GameButtonState MoveUp;
+			GameButtonState MoveDown;
+			GameButtonState MoveLeft;
+			GameButtonState MoveRight;
+		};
+	};
+};
+
+#define GAME_UPDATE_AND_RENDER(name) void name(const GameMemory& gameMemory, const GameInput& input, GameOffscreenBuffer* screenBuffer)
 typedef GAME_UPDATE_AND_RENDER(GameUpdateAndRenderFunc);
 
 // At the moment, this has to be a very fast function. It cannot be more than a millisecond or so.
-/* arg1: const GameMemory& gameMemory, arg2: const GameSoundOutputBuffer& soundOutput */
-#define GAME_GET_SOUND_SAMPLES(name) void name(const GameMemory& gameMemory, const GameSoundOutputBuffer& soundOutput)
+#define GAME_GET_SOUND_SAMPLES(name) void name(const GameMemory& gameMemory, GameSoundOutputBuffer *soundOutput)
 typedef GAME_GET_SOUND_SAMPLES(GameGetSoundSamplesFunc);
