@@ -2,8 +2,6 @@
 
 #include "Platform.h"
 
-/* Game Services */
-
 struct GameMemory
 {
 	void *Permanent;
@@ -20,10 +18,13 @@ struct GameMemory
 struct GameState
 {
 	int ToneHz;
-	bool IsInitialized;
 	real32 tSine;
 
 	int PlayerX, PlayerY;
+	int PlayerVelocityY;
+	bool PlayerJumped;
+
+	bool IsInitialized;
 };
 
 struct GameOffscreenBuffer
@@ -55,17 +56,19 @@ struct GameInput
 
 	union
 	{
-		GameButtonState Buttons[4];
+		GameButtonState Buttons[5];
 		struct
 		{
 			GameButtonState MoveUp;
 			GameButtonState MoveDown;
 			GameButtonState MoveLeft;
 			GameButtonState MoveRight;
+			GameButtonState Jump;
 		};
 	};
 };
 
+/* Game services */
 #define GAME_UPDATE_AND_RENDER(name) void name(const GameMemory& gameMemory, const GameInput& input, GameOffscreenBuffer* screenBuffer)
 typedef GAME_UPDATE_AND_RENDER(GameUpdateAndRenderFunc);
 

@@ -24,13 +24,8 @@ using wbyte = wchar;
 //	or anything else - true
 using bool32 = int;
 
-// String unicode typedef
-#include <string>
-
-#if defined UNICODE || defined _UNICODE
-using String = std::wstring;
+#ifdef UNICODE
 using Char = wchar;
 #else
-using String = std::string;
 using Char = char;
 #endif

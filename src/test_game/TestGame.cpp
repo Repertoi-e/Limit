@@ -1,5 +1,7 @@
 #include "../Limit.h"
 
+#include <cmath> // for std::sinf
+
 static void RenderBackground(GameOffscreenBuffer *buffer)
 {
 	byte *row = (byte *) buffer->Memory;
@@ -16,24 +18,37 @@ static void RenderBackground(GameOffscreenBuffer *buffer)
 	}
 }
 
-static void RenderPlayer(GameOffscreenBuffer *buffer, int playerX, int playerY)
+inline int RoundToS32(real32 value)
 {
-	const u32 playerColor = 0xFF00FF00;
-	const int playerWidth = 10, playerHeight = 10;
+	return (s32) (value + 0.5f);
+}
 
-	byte *bufferEnd = ((byte *) buffer->Memory) + (buffer->Pitch * buffer->Height);
-	for (int x = playerX; x < playerX + playerWidth; ++x)
+static void RenderRectangle(GameOffscreenBuffer *buffer, real32 fMinX, real32 fMinY, real32 fMaxX, real32 fMaxY, u32 color)
+{
+	int minX = RoundToS32(fMinX);
+	int minY = RoundToS32(fMinY);
+	int maxX = RoundToS32(fMaxX);
+	int maxY = RoundToS32(fMaxY);
+
+	if (minX < 0)
+		minX = 0;
+
+	if (minY < 0)
+		minY = 0;
+
+	if (maxX > buffer->Width)
+		maxX = buffer->Width;
+
+	if (maxY > buffer->Height)
+		maxY = buffer->Height;
+
+	byte *row = ((byte *) buffer->Memory + minX * buffer->BytesPerPixel + minY * buffer->Pitch);
+	for (int y = minY; y < maxY; ++y)
 	{
-		byte *pixel = (((byte *) buffer->Memory) + x * buffer->BytesPerPixel + playerY * buffer->Pitch);
-
-		for (int y = playerY; y < playerY + playerHeight; ++y)
-		{
-			if (pixel >= buffer->Memory && ((pixel + 4) < bufferEnd))
-			{
-				*(u32*) pixel = playerColor;
-				pixel += buffer->Pitch;
-			}
-		}
+		u32 *pixel = (u32 *) row;
+		for (int x = minX; x < maxX; ++x)
+			*(u32 *) pixel++ = color;
+		row += buffer->Pitch;
 	}
 }
 
@@ -50,25 +65,53 @@ EXPORT GAME_UPDATE_AND_RENDER(GameUpdateAndRender /*const GameMemory& gameMemory
 		state->tSine = 0.0f;
 	}
 
-	// This is a simple example, which draws a square (the "player") at the cursor's position
+	// Get references to avoid having to type state-> everywhere (syntactic sugar)
+	int& playerX = state->PlayerX;
+	int& playerY = state->PlayerY;
+	int& playerVelocityY = state->PlayerVelocityY;
+	bool& playerJumped = state->PlayerJumped;
+
 	RenderBackground(screenBuffer);
 
-#if 1
-	int speed = (int) ((real32) input.MouseX / screenBuffer->Width * 50);
-	if (input.MoveUp.EndedDown)
-		state->PlayerY -= speed;
-	if (input.MoveDown.EndedDown)
-		state->PlayerY += speed;
-	if (input.MoveLeft.EndedDown)
-		state->PlayerX -= speed;
+	const int playerWidth = 10, playerHeight = 10;
+#if 0
+	// This is a simple example, which draws a square (the "player") at the cursor's position
+	playerX = input.MouseX;
+	playerY = input.MouseY;
+#else
+	// This example is a more platform-like player movement
+	int speed = 15; // (int) ((real32) input.MouseX / screenBuffer->Width * 50);
 	if (input.MoveRight.EndedDown)
 		state->PlayerX += speed;
-#else
-	state->PlayerX = input.MouseX;
-	state->PlayerY = input.MouseY;
+	if (input.MoveLeft.EndedDown)
+		state->PlayerX -= speed;
+	if (input.Jump.EndedDown)
+	{
+		if (!playerJumped)
+		{
+			playerVelocityY -= 40;
+			playerJumped = true;
+		}
+	}
+	playerY += playerVelocityY;
+	
+	// Down is positive Y 
+	playerVelocityY += 9;
+
+	const int floorHeight = screenBuffer->Height - 400;
+
+
+	if (playerY > floorHeight - playerHeight)
+	{
+		playerVelocityY = 0;
+		playerY = floorHeight - playerHeight;
+		playerJumped = false;
+	}
+	RenderRectangle(screenBuffer, 0, floorHeight, screenBuffer->Width, 500, 0xFF00FFFF);
+
 #endif
 
-	RenderPlayer(screenBuffer, state->PlayerX, state->PlayerY);
+	RenderRectangle(screenBuffer, (real32) playerX, (real32) playerY, (real32) playerX + playerWidth, (real32) playerY + playerHeight, 0xFFFF00FF);
 }
 
 
@@ -84,9 +127,9 @@ EXPORT GAME_GET_SOUND_SAMPLES(GameGetSoundSamples /*const GameMemory& gameMemory
 	s16 *sampleOut = soundOutput->Samples;
 	for (int i = 0; i < soundOutput->SampleCount; ++i)
 	{
-		real32 sine = sinf(state->tSine);
+		real32 sine = std::sinf(state->tSine);
 		s16 sampleValue =
-		#if 1
+	#if 0
 			(s16) (sine * toneVolume);
 	#else
 			0;

@@ -1,19 +1,41 @@
+﻿//* Defines *//
+#define WINDOW_WIDTH	800
+#define WINDOW_HEIGHT	600
+#define WINDOW_TITLE	TEXT("Test Game")
+
+// Define SOUND_DEBUG_INFO to print sound stats
+#define SOUND_DEBUG_INFO_XXX
+
+// Define WINDOW_TOPMOST to enable window always staying on top of other windows.
+#define WINDOW_TOPMOST
+
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "gdi32.lib")
 #pragma comment(lib, "winmm.lib")
 
-// Every game provides "services" for the platform
-// (e.g. GameUpdateAndRender) (Look in Platform.h)
-// instead of abstracting window handles and methods, etc.
-// (Does the game really need to have any
-// idea what a window is or how to manage it?)
+// Game source code is compiled separately from the engine
+// as a .dll to support "edit-and-continue" type of experience
+// for the developer. When you compile the game during runtime,
+// the engine detects the new .dll and reloads it instantly,
+// causing any changes made on the game side to take effect
+// immediately. Because of this feature the engine may not support
+// any kind of scripting language (unless for some reason compile
+// times become so big that it is frustrating to wait so much
+// time to see changes, although if compile times become a problem
+// we might have done something wrong...)
 //
-// The idea is to make it very easy for developers
+// Every Limit "game" provides "services" for the platform
+// (e.g. GameUpdateAndRender) (Look in Limit.h)
+// instead of abstracting window handles and methods, etc.
+// because the game really doesn't need to have any
+// idea what a window is or how to manage it.
+//
+// The point is to make it very easy for developers
 // to port to another platform. Basically the platform
-// layer is supposed to ask the game to do stuff instead
-// of the other way around, which makes code easy to follow
-// and straightforward. The only instance when game
-// code calls stuff from the platform layer is for file I/O.
+// layer is supposed to ask the game to do stuff, which
+// makes code flow between game and platform layer straightforward.
+// The only instance where game code asks stuff to be done
+// from the platform layer is for file I/O operations.
 
 #include "Win32_Limit.h"
 #include "Win32_FileIO.cpp"
@@ -21,6 +43,24 @@
 #include "Win32_Timer.cpp"
 
 #include <TimeAPI.h>
+
+static void Win32GetEXEFileName(Win32State *state)
+{
+	Char *nameBuffer = state->EXEFileName.Buffer;
+	GetModuleFileName(0, nameBuffer, state->EXEFileName.Length);
+	Char *slash = nameBuffer;
+	for (Char *scan = nameBuffer; *scan; ++scan)
+		if (*scan == '\\')
+			slash = scan + 1;
+	state->EXEDir = String(nameBuffer, (u32) (slash - nameBuffer));
+}
+
+// Create a full path to a file that is in the same directory as the executable
+// (e.g. game.dll ---> L:/bin/game.dll)
+static void Win32BuildEXEPathFileName(Win32State *state, Char *fileName, String&& dest)
+{
+	ConcatStrings(state->EXEDir, String(fileName), (String&&) dest);
+}
 
 static Win32OffscreenBuffer g_BackBuffer;
 
@@ -34,25 +74,25 @@ static Win32WindowDimension Win32GetWindowDimension(HWND window)
 // !!!
 // TEMPORARY RENDERING, REPLACE WITH A PROPER RENDERING API (DIRECT3D/OPENGL) LATER
 // !!!
-static void Win32ResizeDIBSection(Win32OffscreenBuffer& buffer, int width, int height)
+static void Win32ResizeDIBSection(Win32OffscreenBuffer *buffer, int width, int height)
 {
-	if (buffer.Memory)
-		VirtualFree(buffer.Memory, 0, MEM_RELEASE);
+	if (buffer->Memory)
+		VirtualFree(buffer->Memory, 0, MEM_RELEASE);
 
-	buffer.Width = width;
-	buffer.Height = height;
-	buffer.BytesPerPixel = 4;
+	buffer->Width = width;
+	buffer->Height = height;
+	buffer->BytesPerPixel = 4;
 	{
-		buffer.Info.bmiHeader.biSize = sizeof(buffer.Info.bmiHeader);
-		buffer.Info.bmiHeader.biWidth = buffer.Width;
-		buffer.Info.bmiHeader.biHeight = -buffer.Height; //negative is top-down, positive is bottom-up
-		buffer.Info.bmiHeader.biPlanes = 1;
-		buffer.Info.bmiHeader.biBitCount = 32;
-		buffer.Info.bmiHeader.biCompression = BI_RGB;
+		buffer->Info.bmiHeader.biSize = sizeof(buffer->Info.bmiHeader);
+		buffer->Info.bmiHeader.biWidth = buffer->Width;
+		buffer->Info.bmiHeader.biHeight = -buffer->Height; //negative is top-down, positive is bottom-up
+		buffer->Info.bmiHeader.biPlanes = 1;
+		buffer->Info.bmiHeader.biBitCount = 32;
+		buffer->Info.bmiHeader.biCompression = BI_RGB;
 	}
 
-	buffer.Memory = VirtualAlloc(0, buffer.Width * buffer.Height * buffer.BytesPerPixel, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-	buffer.Pitch = width * buffer.BytesPerPixel;
+	buffer->Memory = VirtualAlloc(0, buffer->Width * buffer->Height * buffer->BytesPerPixel, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+	buffer->Pitch = width * buffer->BytesPerPixel;
 
 	// #TODO Probably clear this to black
 }
@@ -133,6 +173,85 @@ static void Win32ProcessKeyboardMessage(GameButtonState *newState, bool32 isDown
 	}
 }
 
+static void Win32GetInputFileLocation(Win32State *state, bool inputStream, int slot, String&& dest)
+{
+	Char temp[64];
+	wsprintf(temp, TEXT("input_recording_%d_%s.limit"), slot, inputStream ? TEXT("input") : TEXT("state"));
+	Win32BuildEXEPathFileName(state, temp, (String&&) dest);
+}
+
+static void Win32BeginRecordingInput(Win32State *state, int recordingSlot)
+{
+	Win32ReplayBuffer *buffer = &state->ReplayBuffers[recordingSlot];
+	if (buffer->MemoryBlock)
+	{
+		state->InputRecordingSlot = recordingSlot;
+
+		Char FileName[MAX_PATH];
+		Win32GetInputFileLocation(state, true, recordingSlot, String(FileName, MAX_PATH));
+		state->RecordingHandle = CreateFile(FileName, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
+
+		CopyMemory(buffer->MemoryBlock, state->GameMemoryBlock, state->TotalMemorySize);
+	}
+}
+
+static void Win32EndRecordingInput(Win32State *state)
+{
+	CloseHandle(state->RecordingHandle);
+	state->RecordingHandle = 0;
+	state->InputRecordingSlot = -1;
+}
+
+static void Win32RecordInput(Win32State *state, GameInput *input)
+{
+	DWORD ignored;
+	WriteFile(state->RecordingHandle, input, sizeof(GameInput), &ignored, 0);
+}
+
+static void Win32BeginInputPlayBack(Win32State *state, int playingSlot)
+{
+	Win32ReplayBuffer *buffer = &state->ReplayBuffers[playingSlot];
+	if (buffer->MemoryBlock)
+	{
+		// Save the input before starting playback. See Win32_Limit.h for explanation.
+		CopyMemory(state->SavedInputBeforePlay, state->Input, sizeof(state->Input));
+
+		state->InputPlayingSlot = playingSlot;
+		Char FileName[MAX_PATH];
+		Win32GetInputFileLocation(state, true, playingSlot, String(FileName, MAX_PATH));
+
+		state->PlaybackHandle = CreateFile(FileName, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0);
+
+		CopyMemory(state->GameMemoryBlock, buffer->MemoryBlock, state->TotalMemorySize);
+	}
+}
+
+static void Win32EndInputPlayBack(Win32State *state)
+{
+	// Restore the state of the input to what it was before start of playback. See Win32_Limit.h for explanation.
+	CopyMemory(state->Input, state->SavedInputBeforePlay, sizeof(state->SavedInputBeforePlay));
+
+	CloseHandle(state->PlaybackHandle);
+	state->PlaybackHandle = 0;
+	state->InputPlayingSlot = -1;
+}
+
+static void Win32PlayBackInput(Win32State *state, GameInput *input)
+{
+	DWORD bytesRead;
+	if (ReadFile(state->PlaybackHandle, input, sizeof(GameInput), &bytesRead, 0))
+	{
+		if (bytesRead == 0)
+		{
+			// Loop back to the beginning when we hit the end.
+			int inputPlayingSlot = state->InputPlayingSlot; // save the slot
+			Win32EndInputPlayBack(state);
+			Win32BeginInputPlayBack(state, inputPlayingSlot);
+			ReadFile(state->PlaybackHandle, input, sizeof(GameInput), &bytesRead, 0);
+		}
+	}
+}
+
 static LRESULT CALLBACK WindowProc(HWND window, u32 message, WPARAM wParam, LPARAM lParam)
 {
 	switch (message)
@@ -140,8 +259,7 @@ static LRESULT CALLBACK WindowProc(HWND window, u32 message, WPARAM wParam, LPAR
 	case WM_DESTROY:
 	{
 		PostQuitMessage(0);
-	}
-	break;
+	} break;
 	case WM_PAINT:
 	{
 		PAINTSTRUCT paint;
@@ -157,59 +275,30 @@ static LRESULT CALLBACK WindowProc(HWND window, u32 message, WPARAM wParam, LPAR
 	return DefWindowProc(window, message, wParam, lParam);
 }
 
-static size_t StringLength(Char *string)
-{
-	size_t len = 0;
-	while (*string++)
-		++len;
-	return len;
-}
-
-static void ConcatStrings(Char *a, size_t aLen, Char *b, size_t bLen, Char *dest, size_t destLen)
-{
-	Assert(aLen + bLen < destLen);
-	for (size_t i = 0; i < aLen; ++i)
-		*dest++ = *a++;
-	for (size_t i = 0; i < bLen; ++i)
-		*dest++ = *b++;
-	*dest++ = 0;
-}
-
-static void Win32GetEXEFileName(Win32State *state)
-{
-	GetModuleFileName(0, state->EXEFileName, sizeof(state->EXEFileName));
-	state->EXEFileNameSlash = state->EXEFileName;
-	for (Char *scan = state->EXEFileName; *scan; ++scan)
-		if (*scan == '\\')
-			state->EXEFileNameSlash = scan + 1;
-}
-
-// Create a full path to a file that is in the same directory as the executable
-// (e.g. game.dll ---> L:/bin/game.dll)
-static void Win32BuildEXEPathFileName(Win32State *state, Char *fileName, Char *dest, size_t destLen)
-{
-	ConcatStrings(state->EXEFileName, state->EXEFileNameSlash - state->EXEFileName, fileName, StringLength(fileName), dest, destLen);
-}
-
 int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 {
 	constexpr size_t LogMessageSize = 512;
-	Char LogMessage[LogMessageSize]; // Buffer used for _stprintf_s-ing text in VS Debug output
+	Char LogMessage[LogMessageSize]; // Buffer used for _stprintf_s-ing text to the VS Debug output
 
 	Win32State win32State;
+	ZeroMemory(&win32State, sizeof(Win32State));
+	{
+		Char EXEFileName[MAX_PATH];
+		win32State.EXEFileName = String(EXEFileName, MAX_PATH);
+		win32State.InputRecordingSlot = -1;
+		win32State.InputPlayingSlot = -1;
+	}
 	Win32GetEXEFileName(&win32State);
 
 	// Setup .dll locations
 	// Compile game code separately from engine
 	// to allow code recompilation on the fly.
 	// Change literals below to match game code .dll.
-	Char sourceGameCodeDLLFullPath[MAX_PATH];
-	Win32BuildEXEPathFileName(&win32State, TEXT("TestGame.dll"),
-		sourceGameCodeDLLFullPath, sizeof(sourceGameCodeDLLFullPath) / sizeof(Char));
+	Char sourceGameCodeDLLPath[MAX_PATH];
+	Win32BuildEXEPathFileName(&win32State, TEXT("TestGame.dll"), String(sourceGameCodeDLLPath, MAX_PATH));
 
-	Char tempGameCodeDLLFullPath[MAX_PATH];
-	Win32BuildEXEPathFileName(&win32State, TEXT("TestGame.temp.dll"),
-		tempGameCodeDLLFullPath, sizeof(tempGameCodeDLLFullPath) / sizeof(Char));
+	Char tempGameCodeDLLPath[MAX_PATH];
+	Win32BuildEXEPathFileName(&win32State, TEXT("TestGame.temp.dll"), String(tempGameCodeDLLPath, MAX_PATH));
 
 	WNDCLASS wndClass;
 	ZeroMemory(&wndClass, sizeof(WNDCLASS));
@@ -223,11 +312,6 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 	}
 	if (RegisterClass(&wndClass))
 	{
-		int width = 400, height = 300;
-		const Char *windowTitle = TEXT("Test Game");
-
-	#define WINDOW_TOPMOST
-
 		DWORD exStyle = WS_EX_APPWINDOW | WS_EX_WINDOWEDGE
 		#if defined WINDOW_TOPMOST
 			| WS_EX_TOPMOST
@@ -235,16 +319,16 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 			;
 		DWORD style = WS_OVERLAPPEDWINDOW | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN;
 
-		RECT size = { 0, 0, width, height };
-		AdjustWindowRectEx(&size, style, false, exStyle);
-		Win32ResizeDIBSection(g_BackBuffer, width, height);
+		RECT windowSize = { 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT };
+		AdjustWindowRectEx(&windowSize, style, false, exStyle);
+		Win32ResizeDIBSection(&g_BackBuffer, WINDOW_WIDTH, WINDOW_HEIGHT);
 
 		HWND window = CreateWindowEx(exStyle,
 			wndClass.lpszClassName,
-			windowTitle,
+			WINDOW_TITLE,
 			style,
 			CW_USEDEFAULT, CW_USEDEFAULT,
-			size.right + (-size.left), size.bottom + (-size.top),
+			windowSize.right + (-windowSize.left), windowSize.bottom + (-windowSize.top),
 			NULL, NULL, instance, NULL);
 		if (window)
 		{
@@ -262,8 +346,15 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 			gameMemory.PermanentSize = KiloByte(128);
 			gameMemory.TransientSize = KiloByte(256);
 
-			u64 totalSize = gameMemory.PermanentSize + gameMemory.TransientSize;
-			gameMemory.Permanent = VirtualAlloc(0, (size_t) totalSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+			u64 memoryBaseAddress = 0;
+		#ifdef LIMIT_INTERNAL
+			memoryBaseAddress = TeraByte(1);
+		#endif
+
+			win32State.TotalMemorySize = gameMemory.PermanentSize + gameMemory.TransientSize;
+			win32State.GameMemoryBlock = VirtualAlloc((void *) memoryBaseAddress, (size_t) win32State.TotalMemorySize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+
+			gameMemory.Permanent = win32State.GameMemoryBlock;
 			gameMemory.Transient = ((byte *) gameMemory.Permanent + gameMemory.PermanentSize);
 
 			gameMemory.DEBUGPlatformFreeFileMemory = DEBUGPlatformFreeFileMemory;
@@ -272,26 +363,41 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 
 			if (gameMemory.Permanent && gameMemory.Transient)
 			{
-				GameInput input[2] = {};
-				GameInput *newInput = &input[0];
-				GameInput *oldInput = &input[1];
+				GameInput *newInput = &win32State.Input[0];
+				GameInput *oldInput = &win32State.Input[1];
+
+				for (int i = 0; i < ArrayCount(win32State.ReplayBuffers); ++i)
+				{
+					Win32ReplayBuffer* buffer = &win32State.ReplayBuffers[i];
+					Win32GetInputFileLocation(&win32State, false, i, String(buffer->FileName, MAX_PATH));
+
+					buffer->FileHandle = CreateFile(buffer->FileName, GENERIC_WRITE | GENERIC_READ, 0, 0, CREATE_ALWAYS, 0, 0);
+
+					LARGE_INTEGER size;
+					size.QuadPart = win32State.TotalMemorySize;
+					buffer->MemoryMap = CreateFileMapping(buffer->FileHandle, 0, PAGE_READWRITE, size.HighPart, size.LowPart, 0);
+					buffer->MemoryBlock = MapViewOfFile(buffer->MemoryMap, FILE_MAP_ALL_ACCESS, 0, 0, 0);
+
+					if (!buffer->MemoryBlock)
+					{
+						Assert(false);
+						// #Diagnostics
+					}
+				}
 
 				int monitorRefreshHz = 60;
 				{
 					HDC deviceContext = GetDC(window);
-					int regreshRate = GetDeviceCaps(deviceContext, VREFRESH);
+					int refreshRate = GetDeviceCaps(deviceContext, VREFRESH);
 					ReleaseDC(window, deviceContext);
-					if (regreshRate > 1)
-						monitorRefreshHz = regreshRate;
+					if (refreshRate > 1)
+						monitorRefreshHz = refreshRate;
 				}
 				real32 gameUpdateHz = (monitorRefreshHz / 2.0f);
 				real32 targetSecondsPerFrame = (1.0f / (gameUpdateHz));
 
-				// Undef to print sound stats
-				// #define SOUND_DEBUG_INFO
-
 				const u32 desiredSchedulerMS = 1;
-				const bool hasGrainularSleep = timeBeginPeriod(desiredSchedulerMS) == TIMERR_NOERROR;
+				const bool hasGranularSleep = timeBeginPeriod(desiredSchedulerMS) == TIMERR_NOERROR;
 
 				Win32SoundOutput soundOutput;
 				ZeroMemory(&soundOutput, sizeof(Win32SoundOutput));
@@ -315,21 +421,23 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 				Win32Timer frameTimer, frameFlipTimer;
 
 				// Load the game code for the first time
-				Win32GameCode game = Win32LoadGameCode(sourceGameCodeDLLFullPath, tempGameCodeDLLFullPath);
+				Win32GameCode game = Win32LoadGameCode(sourceGameCodeDLLPath, tempGameCodeDLLPath);
 
 				// Window title sugar
 				int gameCodeReloadedTitle = 0;
+				int recordingDotTimer = 0;
+				bool recordingDot = true;
 
 				bool running = true;
 				while (running)
 				{
 					// Check for game code .dll change by comparing the dates, if it is - reload it
-					FILETIME newWriteTime = Win32GetLastWriteTime(sourceGameCodeDLLFullPath);
+					FILETIME newWriteTime = Win32GetLastWriteTime(sourceGameCodeDLLPath);
 
 					if (CompareFileTime(&newWriteTime, &game.LastWriteTime) != 0)
 					{
 						Win32UnloadGameCode(&game);
-						game = Win32LoadGameCode(sourceGameCodeDLLFullPath, tempGameCodeDLLFullPath);
+						game = Win32LoadGameCode(sourceGameCodeDLLPath, tempGameCodeDLLPath);
 						gameCodeReloadedTitle = (int) (gameUpdateHz * 1.5) /* 1.5 seconds */;
 					}
 
@@ -364,6 +472,8 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 							u32 vkCode = (u32) msg.wParam;
 							bool wasDown = (msg.lParam & (1 << 30)) != 0;
 							bool isDown = (msg.lParam & (1 << 31)) == 0;
+							bool32 altKeyWasDown = (msg.lParam & (1 << 29));
+
 							if (wasDown != isDown)
 							{
 								if (vkCode == 'W')
@@ -374,11 +484,62 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 									Win32ProcessKeyboardMessage(&newInput->MoveDown, isDown);
 								else if (vkCode == 'D')
 									Win32ProcessKeyboardMessage(&newInput->MoveRight, isDown);
+								else if (vkCode == VK_SPACE)
+									Win32ProcessKeyboardMessage(&newInput->Jump, isDown);
+								// This fails to map keys if the replay buffers are more than 9.
+								else if (isDown && vkCode > '0' && (vkCode < ('1' + ArrayCount(win32State.ReplayBuffers))))
+								{
+									int slot = vkCode - '0' - 1;
+
+									int currentPlayingSlot = win32State.InputPlayingSlot;
+									int currentRecordingSlot = win32State.InputRecordingSlot;
+
+									// Alt + [Number]: Begin/stop recording
+									// [Number]:	   Begin/stop playback
+									if (altKeyWasDown)
+									{
+										if (currentRecordingSlot != -1)
+										{
+											_stprintf_s(LogMessage, LogMessageSize, TEXT("Stopped recording on slot %d.\n"), slot);
+											OutputDebugString(LogMessage);
+											Win32EndRecordingInput(&win32State);
+										}
+										if (currentPlayingSlot != -1)
+										{
+											_stprintf_s(LogMessage, LogMessageSize, TEXT("Stopped playing on slot %d.\n"), currentPlayingSlot);
+											OutputDebugString(LogMessage);
+											Win32EndInputPlayBack(&win32State);
+										}
+										if (slot != currentRecordingSlot)
+										{
+											_stprintf_s(LogMessage, LogMessageSize, TEXT("Beginning recording on slot %d.\n"), slot);
+											OutputDebugString(LogMessage);
+											Win32BeginRecordingInput(&win32State, slot);
+										}
+									}
+									else
+									{
+										if (currentRecordingSlot == -1)
+										{
+											if (currentPlayingSlot != -1)
+											{
+												_stprintf_s(LogMessage, LogMessageSize, TEXT("Stopped playing on slot %d.\n"), currentPlayingSlot);
+												OutputDebugString(LogMessage);
+												Win32EndInputPlayBack(&win32State);
+											}
+											if (currentPlayingSlot != slot)
+											{
+												_stprintf_s(LogMessage, LogMessageSize, TEXT("Beginning playback on slot %d.\n"), slot);
+												OutputDebugString(LogMessage);
+												Win32BeginInputPlayBack(&win32State, slot);
+											}
+										}
+									}
+								}
 							}
 
 							// Alf+F4 handle
-							bool32 altKeyWasDown = msg.lParam & (1 << 29);
-							if ((vkCode == VK_F4) && altKeyWasDown)
+							if (vkCode == VK_F4 && altKeyWasDown)
 								running = false;
 						} break;
 						}
@@ -398,6 +559,13 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 						screenBuffer.Pitch = g_BackBuffer.Pitch;
 						screenBuffer.BytesPerPixel = g_BackBuffer.BytesPerPixel;
 					}
+
+					if (win32State.InputRecordingSlot != -1)
+						Win32RecordInput(&win32State, newInput);
+
+					if (win32State.InputPlayingSlot != -1)
+						Win32PlayBackInput(&win32State, newInput);
+
 					if (game.UpdateAndRender)
 						game.UpdateAndRender(gameMemory, *newInput, &screenBuffer);
 
@@ -433,7 +601,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 							validSound = true;
 						}
 						u32 byteToLock = ((soundOutput.RunningSampleIndex * soundOutput.BytesPerSample) % soundOutput.SecondaryBufferSize);
-						u32 expectedBytesPerFrame = (u32) ((soundOutput.SamplesPerSecond * soundOutput.BytesPerSample) / gameUpdateHz);
+						u32 expectedBytesPerFrame = (u32) (((real32) soundOutput.SamplesPerSecond * soundOutput.BytesPerSample) / gameUpdateHz);
 
 						real32 secondsUntilFlip = targetSecondsPerFrame - elapsedSecondsToAudio;
 						u32 expectedBytesUntilFlip = (DWORD) ((secondsUntilFlip / targetSecondsPerFrame) * (real32) expectedBytesPerFrame);
@@ -486,7 +654,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 						OutputDebugString(LogMessage);
 					#endif
 						Win32FillSoundBuffer(soundOutput, byteToLock, bytesToWrite, soundBuffer);
-						}
+					}
 					else
 					{
 						validSound = false;
@@ -497,7 +665,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 
 					if (frameSecondsElapsed < targetSecondsPerFrame)
 					{
-						if (hasGrainularSleep)
+						if (hasGranularSleep)
 						{
 							u32 sleepMS = (u32) (1000.f * (targetSecondsPerFrame - frameSecondsElapsed));
 							if (sleepMS > 1)
@@ -528,22 +696,52 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 					Char* titleStateDisplay = TEXT("");
 					if (gameCodeReloadedTitle-- > 0)
 						titleStateDisplay = TEXT("**Game code reloaded** |");
-					_stprintf_s(LogMessage, LogMessageSize, TEXT("%s | %s %.02fms/f, %.02ff/s, (%.02fws/f)\n"), windowTitle, titleStateDisplay, msPerFrame, fps, frameSecondsElapsed * 1000.0f);
+					else if (win32State.InputRecordingSlot != -1)
+					{
+						recordingDotTimer++;
+						if (recordingDotTimer > (int) gameUpdateHz)
+						{
+							recordingDot = !recordingDot;
+							recordingDotTimer = 0;
+						}
+
+						Char titleRecord[32];
+						if (recordingDot)
+							_stprintf_s(titleRecord, 32, TEXT("• Recording on slot %d |"), win32State.InputRecordingSlot + 1);
+						else
+							_stprintf_s(titleRecord, 32, TEXT("  Recording on slot %d |"), win32State.InputRecordingSlot + 1);
+						titleStateDisplay = titleRecord;
+					}
+					else if (win32State.InputPlayingSlot != -1)
+					{
+						recordingDot = true;
+						recordingDotTimer = 0;
+
+						Char titlePlay[32];
+						_stprintf_s(titlePlay, 32, TEXT("▶ Playing on slot %d |"), win32State.InputPlayingSlot + 1);
+						titleStateDisplay = titlePlay;
+					}
+					else
+					{
+						recordingDot = true;
+						recordingDotTimer = 0;
+					}
+					_stprintf_s(LogMessage, LogMessageSize, TEXT("%s | %s %.02fms/f, %.02ff/s"), WINDOW_TITLE, titleStateDisplay, msPerFrame, fps);
 					SetWindowText(window, LogMessage);
 
 					GameInput *temp = newInput;
 					newInput = oldInput;
 					oldInput = temp;
-					}
 				}
 			}
+		}
 		else
 		{
 			_stprintf_s(LogMessage, LogMessageSize, TEXT("Terminal failure: Unable to create a window.\n GetLastError=%08x\n"), GetLastError());
 			OutputDebugString(LogMessage);
 			return -1;
 		}
-		}
+	}
 	else
 	{
 		_stprintf_s(LogMessage, LogMessageSize, TEXT("Terminal failure: Unable to register internal window class.\n GetLastError=%08x\n"), GetLastError());
@@ -552,4 +750,4 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 	}
 
 	return 0;
-	}
+}
