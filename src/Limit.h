@@ -17,12 +17,7 @@ struct GameMemory
 
 struct GameState
 {
-	int ToneHz;
-	real32 tSine;
-
 	int PlayerX, PlayerY;
-	int PlayerVelocityY;
-	bool PlayerJumped;
 
 	bool IsInitialized;
 };

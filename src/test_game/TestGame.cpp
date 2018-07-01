@@ -18,12 +18,17 @@ static void RenderBackground(GameOffscreenBuffer *buffer)
 	}
 }
 
-inline int RoundToS32(real32 value)
+inline s32 RoundToS32(real32 value)
 {
 	return (s32) (value + 0.5f);
 }
 
-static void RenderRectangle(GameOffscreenBuffer *buffer, real32 fMinX, real32 fMinY, real32 fMaxX, real32 fMaxY, u32 color)
+inline u32 RoundToU32(real32 value)
+{
+	return (u32) (value + 0.5f);
+}
+
+static void RenderRectangle(GameOffscreenBuffer *buffer, real32 fMinX, real32 fMinY, real32 fMaxX, real32 fMaxY, real32 r, real32 g, real32 b)
 {
 	int minX = RoundToS32(fMinX);
 	int minY = RoundToS32(fMinY);
@@ -41,6 +46,8 @@ static void RenderRectangle(GameOffscreenBuffer *buffer, real32 fMinX, real32 fM
 
 	if (maxY > buffer->Height)
 		maxY = buffer->Height;
+
+	u32 color = (RoundToS32(r * 255.f) << 16) | (RoundToS32(g * 255.f) << 8) | RoundToS32(b * 255.f);
 
 	byte *row = ((byte *) buffer->Memory + minX * buffer->BytesPerPixel + minY * buffer->Pitch);
 	for (int y = minY; y < maxY; ++y)
@@ -61,84 +68,30 @@ EXPORT GAME_UPDATE_AND_RENDER(GameUpdateAndRender /*const GameMemory& gameMemory
 		state->IsInitialized = true;
 
 		/* Code that runs on game intitialization */
-		state->ToneHz = 512;
-		state->tSine = 0.0f;
 	}
 
 	// Get references to avoid having to type state-> everywhere (syntactic sugar)
 	int& playerX = state->PlayerX;
 	int& playerY = state->PlayerY;
-	int& playerVelocityY = state->PlayerVelocityY;
-	bool& playerJumped = state->PlayerJumped;
 
 	RenderBackground(screenBuffer);
 
-	const int playerWidth = 10, playerHeight = 10;
-#if 0
-	// This is a simple example, which draws a square (the "player") at the cursor's position
-	playerX = input.MouseX;
-	playerY = input.MouseY;
-#else
-	// This example is a more platform-like player movement
-	int speed = 15; // (int) ((real32) input.MouseX / screenBuffer->Width * 50);
+	int speed = 15;
 	if (input.MoveRight.EndedDown)
 		state->PlayerX += speed;
 	if (input.MoveLeft.EndedDown)
 		state->PlayerX -= speed;
-	if (input.Jump.EndedDown)
-	{
-		if (!playerJumped)
-		{
-			playerVelocityY -= 40;
-			playerJumped = true;
-		}
-	}
-	playerY += playerVelocityY;
-	
-	// Down is positive Y 
-	playerVelocityY += 9;
+	if (input.MoveUp.EndedDown)
+		state->PlayerY -= speed;
+	if (input.MoveDown.EndedDown)
+		state->PlayerY += speed;
 
-	const int floorHeight = screenBuffer->Height - 400;
-
-
-	if (playerY > floorHeight - playerHeight)
-	{
-		playerVelocityY = 0;
-		playerY = floorHeight - playerHeight;
-		playerJumped = false;
-	}
-	RenderRectangle(screenBuffer, 0, floorHeight, screenBuffer->Width, 500, 0xFF00FFFF);
-
-#endif
-
-	RenderRectangle(screenBuffer, (real32) playerX, (real32) playerY, (real32) playerX + playerWidth, (real32) playerY + playerHeight, 0xFFFF00FF);
+	const int playerWidth = 10, playerHeight = 10;
+	RenderRectangle(screenBuffer, (real32) playerX, (real32) playerY, (real32) playerX + playerWidth, (real32) playerY + playerHeight, 1.0f, 1.0f, 0.0f);
 }
 
 
-// Outputs sound for the current frame,
-// just a simple sine wave for now.
+// Outputs sound for the current frame
 EXPORT GAME_GET_SOUND_SAMPLES(GameGetSoundSamples /*const GameMemory& gameMemory, GameSoundOutputBuffer *soundOutput*/)
 {
-	GameState *state = (GameState *) gameMemory.Permanent;
-
-	s16 toneVolume = 3000;
-	real32 wavePeriod = (real32) soundOutput->SamplesPerSecond / state->ToneHz;
-
-	s16 *sampleOut = soundOutput->Samples;
-	for (int i = 0; i < soundOutput->SampleCount; ++i)
-	{
-		real32 sine = std::sinf(state->tSine);
-		s16 sampleValue =
-	#if 0
-			(s16) (sine * toneVolume);
-	#else
-			0;
-	#endif
-		*sampleOut++ = sampleValue;
-		*sampleOut++ = sampleValue;
-
-		state->tSine += 2.f * M_PI * (1.f / wavePeriod);
-		if (state->tSine > (2.f * M_PI))
-			state->tSine -= (2.f * M_PI);
-	}
 }

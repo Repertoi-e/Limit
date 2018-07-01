@@ -4,6 +4,30 @@
 
 #include "String.h"
 
+struct Win32WindowDimension
+{
+	int Width, Height;
+};
+
+struct Win32OffscreenBuffer
+{
+	// Pixels are always 32bit wide
+	BITMAPINFO Info;
+	void* Memory;
+	int Width, Height;
+	int Pitch;
+	int BytesPerPixel;
+};
+
+struct Win32GameCode
+{
+	HMODULE DLL;
+	GameUpdateAndRenderFunc *UpdateAndRender;
+	GameGetSoundSamplesFunc *GetSoundSamples;
+	FILETIME LastWriteTime;
+	bool IsValid;
+};
+
 struct Win32ReplayBuffer
 {
 	HANDLE FileHandle;
@@ -33,26 +57,20 @@ struct Win32State
 	String EXEFileName, EXEDir;
 };
 
-struct Win32WindowDimension
+static void Win32GetEXEFileName(Win32State *state)
 {
-	int Width, Height;
-};
+	Char *nameBuffer = state->EXEFileName.Buffer;
+	GetModuleFileName(0, nameBuffer, state->EXEFileName.Length);
+	Char *slash = nameBuffer;
+	for (Char *scan = nameBuffer; *scan; ++scan)
+		if (*scan == '\\')
+			slash = scan + 1;
+	state->EXEDir = String(nameBuffer, (u32) (slash - nameBuffer));
+}
 
-struct Win32OffscreenBuffer
+// Create a full path to a file that is in the same directory as the executable
+// (e.g. game.dll ---> L:/bin/game.dll)
+static void Win32BuildEXEPathFileName(Win32State *state, Char *fileName, String&& dest)
 {
-	// Pixels are always 32bit wide
-	BITMAPINFO Info;
-	void* Memory;
-	int Width, Height;
-	int Pitch;
-	int BytesPerPixel;
-};
-
-struct Win32GameCode
-{
-	HMODULE DLL;
-	GameUpdateAndRenderFunc *UpdateAndRender;
-	GameGetSoundSamplesFunc *GetSoundSamples;
-	FILETIME LastWriteTime;
-	bool IsValid;
-};
+	ConcatStrings(state->EXEDir, String(fileName), (String&&) dest);
+}
