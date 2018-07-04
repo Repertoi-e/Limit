@@ -4,9 +4,6 @@
 
 inline TileChunk* GetTileChunk(TileMap *tileMap, int chunkX, int chunkY)
 {
-	chunkX = chunkX >> tileMap->ChunkShift;
-	chunkY = chunkY >> tileMap->ChunkShift;
-	
 	TileChunk *chunk = 0;
 	if ((chunkX >= 0) && (chunkX < tileMap->TileChunkCountX) &&
 		(chunkY >= 0) && (chunkY < tileMap->TileChunkCountY))
@@ -14,31 +11,55 @@ inline TileChunk* GetTileChunk(TileMap *tileMap, int chunkX, int chunkY)
 	return chunk;
 }
 
-static byte GetTileValue(TileMap *tileMap, u32 absTileX, u32 absTileY)
+inline byte GetTileValueUnchecked(TileMap *tileMap, TileChunk *chunk, u32 x, u32 y)
 {
+	Assert(chunk);
+	Assert(x < tileMap->ChunkDim);
+	Assert(y < tileMap->ChunkDim);
+	
+	return chunk->Tiles[y * tileMap->ChunkDim + x];
+}
+
+inline void SetTileValueUnchecked(TileMap *tileMap, TileChunk *chunk, u32 x, u32 y, byte value)
+{
+	Assert(chunk);
+	Assert(x < tileMap->ChunkDim);
+	Assert(y < tileMap->ChunkDim);
+	
+	chunk->Tiles[y * tileMap->ChunkDim + x] = value;
+}
+
+inline byte GetTileValue(TileMap *tileMap, TileChunk *chunk, u32 x, u32 y)
+{
+	
 	byte value = 0;
-	TileChunk *chunk = GetTileChunk(tileMap, absTileX, absTileY);
-	u32 relTileX = absTileX & tileMap->ChunkMask;
-	u32 relTileY = absTileY & tileMap->ChunkMask;
 	if (chunk)
-		value = chunk->Tiles[relTileY * tileMap->ChunkDim + relTileX];
+		value = GetTileValueUnchecked(tileMap, chunk, x, y);
 	return value;
 }
 
-static void SetTileValue(TileMap *tileMap, u32 absTileX, u32 absTileY, byte value)
+inline void SetTileValue(TileMap *tileMap, TileChunk *chunk, u32 x, u32 y, byte value)
 {
-	TileChunk *chunk = GetTileChunk(tileMap, absTileX, absTileY);
-	u32 relTileX = absTileX & tileMap->ChunkMask;
-	u32 relTileY = absTileY & tileMap->ChunkMask;
 	if (chunk)
-		chunk->Tiles[relTileY * tileMap->ChunkDim + relTileX] = value;
+		SetTileValueUnchecked(tileMap, chunk, x, y, value);
+}
+
+inline TileChunkPosition GetChunkPositionFor(TileMap *tileMap, u32 absTileX, u32 absTileY)
+{
+	TileChunkPosition result;
+	result.TileChunkX = absTileX >> tileMap->ChunkShift;
+	result.TileChunkY = absTileY >> tileMap->ChunkShift;
+	result.TileRelX = absTileX & tileMap->ChunkMask;
+	result.TileRelY = absTileY & tileMap->ChunkMask;
+	
+	return result;
 }
 
 
 inline void CanonizeCoord(TileMap *tileMap, u32 *tile, real32 *tileRel)
 {
 	// The world is assumed to be toroidal topology, if you step off one you come back in the other
-	int offset = RoundToS32((*tileRel) / tileMap->TileSideInMeters);
+	int offset = RoundToS32(*tileRel / tileMap->TileSideInMeters);
 	*tile += offset;
 	*tileRel -= offset * tileMap->TileSideInMeters;
 	
@@ -46,9 +67,9 @@ inline void CanonizeCoord(TileMap *tileMap, u32 *tile, real32 *tileRel)
 	Assert(*tileRel <= .5f * tileMap->TileSideInMeters);
 }
 
-inline WorldPosition CanonizePosition(TileMap *tileMap, WorldPosition position)
+inline TileMapPosition CanonizePosition(TileMap *tileMap, TileMapPosition position)
 {
-	WorldPosition result = position;
+	TileMapPosition result = position;
 	
 	CanonizeCoord(tileMap, &result.AbsTileX, &result.TileRelX);
 	CanonizeCoord(tileMap, &result.AbsTileY, &result.TileRelY);
@@ -56,7 +77,25 @@ inline WorldPosition CanonizePosition(TileMap *tileMap, WorldPosition position)
 	return result;
 }
 
-inline bool32 IsWorldPointEmpty(TileMap *tileMap, WorldPosition position)
+static byte GetTileValue(TileMap *tileMap, u32 absTileX, u32 absTileY)
+{
+	TileChunkPosition chunkPosition = GetChunkPositionFor(tileMap, absTileX, absTileY);
+	TileChunk *chunk = GetTileChunk(tileMap, chunkPosition.TileChunkX, chunkPosition.TileChunkY);
+	return GetTileValue(tileMap, chunk, chunkPosition.TileRelX, chunkPosition.TileRelY);
+}
+
+// #TODO: Support on-demand tile chunk creation
+static void SetTileValue(TileMap *tileMap, u32 absTileX, u32 absTileY, byte value)
+{
+	TileChunkPosition chunkPosition = GetChunkPositionFor(tileMap, absTileX, absTileY);
+	TileChunk *chunk = GetTileChunk(tileMap, chunkPosition.TileChunkX, chunkPosition.TileChunkY);
+	
+	Assert(chunk);
+	
+	SetTileValue(tileMap, chunk, chunkPosition.TileRelX, chunkPosition.TileRelY, value);
+}
+
+inline bool32 IsWorldPointEmpty(TileMap *tileMap, TileMapPosition position)
 {
 	return GetTileValue(tileMap, position.AbsTileX, position.AbsTileY) == 0;
 }

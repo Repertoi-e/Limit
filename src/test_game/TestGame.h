@@ -14,8 +14,8 @@ struct MemoryArena
 struct GameState
 {
 	World *World;
-	WorldPosition PlayerPosition;
-
+	TileMapPosition PlayerPosition;
+	
 	bool32 IsInitialized;
 };
 

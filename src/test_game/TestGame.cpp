@@ -6,7 +6,7 @@
 
 static const GameMemory* g_Memory; // global for the game .dll
 
-#define PushSize(Arena, Type) (Type *)PushSize_(Arena, sizeof(Type))
+#define PushStruct(Arena, Type) (Type *)PushSize_(Arena, sizeof(Type))
 #define PushArray(Arena, Count, Type) (Type *)PushSize_(Arena, (Count) * sizeof(Type))
 
 static byte* PushSize_(MemoryArena *arena, u32 size)
@@ -86,7 +86,7 @@ EXPORT GAME_UPDATE_AND_RENDER(GameUpdateAndRender /*const GameMemory& gameMemory
 	GameState *state = (GameState *) gameMemory.Permanent;
 	
 	// Get references to avoid having to type state-> everywhere (syntactic sugar)
-	WorldPosition& playerPosition = state->PlayerPosition;
+	TileMapPosition& playerPosition = state->PlayerPosition;
 	World*& world = state->World;
 	
 	if (!state->IsInitialized)
@@ -101,17 +101,17 @@ EXPORT GAME_UPDATE_AND_RENDER(GameUpdateAndRender /*const GameMemory& gameMemory
 		worldArena.Size = gameMemory.PermanentSize - sizeof(GameState);
 		worldArena.Used = 0;
 		
-		world = PushSize(&worldArena, World);
+		world = PushStruct(&worldArena, World);
 		
-		TileMap *tileMap = PushSize(&worldArena, TileMap);
+		TileMap *tileMap = PushStruct(&worldArena, TileMap);
 		world->TileMap = tileMap;
 		
-		tileMap->ChunkShift = 8;
+		tileMap->ChunkShift = 4;
 		tileMap->ChunkMask = (1 << tileMap->ChunkShift) - 1;
 		tileMap->ChunkDim = 1 << tileMap->ChunkShift;
 		
-		tileMap->TileChunkCountX = 10;
-		tileMap->TileChunkCountY = 10;
+		tileMap->TileChunkCountX = 120;
+		tileMap->TileChunkCountY = 120;
 		
 		tileMap->TileSideInMeters = 1.4f;
 		tileMap->TileSideInPixels = 15;
@@ -120,14 +120,17 @@ EXPORT GAME_UPDATE_AND_RENDER(GameUpdateAndRender /*const GameMemory& gameMemory
 		
 		playerPosition.AbsTileX = 3;
 		playerPosition.AbsTileY = 3;
-		playerPosition.TileRelX = tileMap->TileSideInMeters / 2;
-		playerPosition.TileRelY = tileMap->TileSideInMeters / 2;
+		playerPosition.TileRelX = 5.0f;
+		playerPosition.TileRelY = 5.0f;
+		playerPosition = CanonizePosition(tileMap, playerPosition);
 		
 		tileMap->TileChunks = PushArray(&worldArena, tileMap->TileChunkCountY * tileMap->TileChunkCountX, TileChunk);
 		
 		for (int y = 0; y < tileMap->TileChunkCountY; y++)
+		{
 			for (int x = 0; x < tileMap->TileChunkCountX; x++)
-			tileMap->TileChunks[y * tileMap->TileChunkCountX + x].Tiles = PushArray(&worldArena, tileMap->ChunkDim * tileMap->ChunkDim, byte);
+				tileMap->TileChunks[y * tileMap->TileChunkCountX + x].Tiles = PushArray(&worldArena, tileMap->ChunkDim * tileMap->ChunkDim, byte);
+		}
 		
 		int screenXCount = 20;
 		int screenYCount = 20;
@@ -181,9 +184,9 @@ EXPORT GAME_UPDATE_AND_RENDER(GameUpdateAndRender /*const GameMemory& gameMemory
 		
 		int dx = 0, dy = 0;
 		if (input.MoveUp.EndedDown)
-			dy -= 1;
-		if (input.MoveDown.EndedDown)
 			dy += 1;
+		if (input.MoveDown.EndedDown)
+			dy -= 1;
 		if (input.MoveLeft.EndedDown)
 			dx -= 1;
 		if (input.MoveRight.EndedDown)
@@ -193,15 +196,15 @@ EXPORT GAME_UPDATE_AND_RENDER(GameUpdateAndRender /*const GameMemory& gameMemory
 		if (input.Sprint.EndedDown)
 			speed *= 10;
 		
-		WorldPosition newPlayerPosition = playerPosition;
+		TileMapPosition newPlayerPosition = playerPosition;
 		newPlayerPosition.TileRelX += input.DeltaTime * dx * speed;
 		newPlayerPosition.TileRelY += input.DeltaTime * dy * speed;
 		newPlayerPosition = CanonizePosition(tileMap, newPlayerPosition);
 		
-		WorldPosition playerLeft = newPlayerPosition;
+		TileMapPosition playerLeft = newPlayerPosition;
 		playerLeft.TileRelX -= 0.5f * playerWidth;
 		playerLeft = CanonizePosition(tileMap, playerLeft);
-		WorldPosition playerRight = newPlayerPosition;
+		TileMapPosition playerRight = newPlayerPosition;
 		playerRight.TileRelX += 0.5f * playerWidth;
 		playerRight = CanonizePosition(tileMap, playerRight);
 		
@@ -216,8 +219,8 @@ EXPORT GAME_UPDATE_AND_RENDER(GameUpdateAndRender /*const GameMemory& gameMemory
 	DrawRectangle(screenBuffer, .0f, .0f, (real32) screenBuffer->Width, (real32) screenBuffer->Height, .0f, .0f, .0f);
 	
 	// Draw the world
-	real32 centerX = .5f * (real32) screenBuffer->Width;
-	real32 centerY = .5f * (real32) screenBuffer->Height;
+	real32 screenCenterX = .5f * (real32) screenBuffer->Width;
+	real32 screenCenterY = .5f * (real32) screenBuffer->Height;
 	
 	for (int relRow = -20; relRow < 20; ++relRow)
 	{
@@ -232,13 +235,14 @@ EXPORT GAME_UPDATE_AND_RENDER(GameUpdateAndRender /*const GameMemory& gameMemory
 			if ((col == playerPosition.AbsTileX) && (row == playerPosition.AbsTileY))
 				gray = 0;
 			
-			real32 tileCenterX = centerX + (relCol * tileMap->TileSideInPixels) - tileMap->MetersToPixels * playerPosition.TileRelX;
-			real32 tileCenterY = centerY + (relRow * tileMap->TileSideInPixels) - tileMap->MetersToPixels * playerPosition.TileRelY;
+			real32 centerX = screenCenterX - tileMap->MetersToPixels * playerPosition.TileRelX + (real32) relCol * tileMap->TileSideInPixels;
+			real32 centerY = screenCenterY + tileMap->MetersToPixels * playerPosition.TileRelY - (real32) relRow * tileMap->TileSideInPixels;
 			
-			real32 minX = tileCenterX - 0.5f * tileMap->TileSideInPixels;
-			real32 minY = tileCenterY - 0.5f * tileMap->TileSideInPixels;
-			real32 maxX = minX + tileMap->TileSideInPixels;
-			real32 maxY = minY + tileMap->TileSideInPixels;
+			
+			real32 minX = centerX - .5f * tileMap->TileSideInPixels;
+			real32 minY = centerY - .5f * tileMap->TileSideInPixels;
+			real32 maxX = centerX + .5f * tileMap->TileSideInPixels;
+			real32 maxY = centerY + .5f * tileMap->TileSideInPixels;
 			
 			DrawRectangle(screenBuffer, minX, minY, maxX, maxY, gray, gray, gray);
 		}
@@ -246,8 +250,8 @@ EXPORT GAME_UPDATE_AND_RENDER(GameUpdateAndRender /*const GameMemory& gameMemory
 	
 	// Draw the player
 	
-	real32 playerMinX = centerX + tileMap->MetersToPixels * playerPosition.TileRelX - 0.5f * tileMap->MetersToPixels * playerWidth;
-	real32 playerMinY = centerY + tileMap->MetersToPixels * playerPosition.TileRelY - 0.5f * tileMap->MetersToPixels * playerHeight;
+	real32 playerMinX = screenCenterX - 0.5f * tileMap->MetersToPixels * playerWidth;
+	real32 playerMinY = screenCenterY - tileMap->MetersToPixels * playerHeight;
 	
 	DrawRectangle(screenBuffer, playerMinX, playerMinY, playerMinX + tileMap->MetersToPixels * playerWidth, playerMinY + tileMap->MetersToPixels * playerHeight, .2f, .3f, .8f);
 }
