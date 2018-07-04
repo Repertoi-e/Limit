@@ -90,12 +90,33 @@ static void SetTileValue(TileMap *tileMap, u32 absTileX, u32 absTileY, byte valu
 	TileChunkPosition chunkPosition = GetChunkPositionFor(tileMap, absTileX, absTileY);
 	TileChunk *chunk = GetTileChunk(tileMap, chunkPosition.TileChunkX, chunkPosition.TileChunkY);
 	
-	Assert(chunk);
-	
-	SetTileValue(tileMap, chunk, chunkPosition.TileRelX, chunkPosition.TileRelY, value);
+	if (chunk)
+		SetTileValue(tileMap, chunk, chunkPosition.TileRelX, chunkPosition.TileRelY, value);
 }
 
 inline bool32 IsWorldPointEmpty(TileMap *tileMap, TileMapPosition position)
 {
 	return GetTileValue(tileMap, position.AbsTileX, position.AbsTileY) == 0;
+}
+
+inline TileMapPosition ScreenCoordsToTileMapPosition(const GameOffscreenBuffer& screenBuffer, TileMap *tileMap, TileMapPosition cameraPosition, int screenX, int screenY)
+{
+	TileMapPosition result;
+	
+	real32 screenCenterX = (real32) screenBuffer.Width  / 2;
+	real32 screenCenterY = (real32) screenBuffer.Height / 2;
+	
+	real32 offsetX = (real32) (screenX - screenCenterX + cameraPosition.TileRelX * tileMap->MetersToPixels + tileMap->TileSideInPixels / 2);
+	real32 offsetY = (real32) (screenCenterY - screenY + cameraPosition.TileRelY * tileMap->MetersToPixels + tileMap->TileSideInPixels / 2);
+	
+	int tileX = (int) (offsetX / tileMap->TileSideInPixels);
+	int tileY = (int) (offsetY / tileMap->TileSideInPixels);
+	
+	result.AbsTileX = tileX + cameraPosition.AbsTileX;
+	result.AbsTileY = tileY + cameraPosition.AbsTileY;
+	
+	result.TileRelX = offsetX - tileX * tileMap->TileSideInPixels;
+	result.TileRelY = offsetY - tileY * tileMap->TileSideInPixels;
+	
+	return result;
 }

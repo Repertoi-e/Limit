@@ -17,39 +17,6 @@ static byte* PushSize_(MemoryArena *arena, u32 size)
 	return result;
 }
 
-static u32 CountCharacter(Char *string, Char ch)
-{
-	if (ch == TEXT('\0'))
-		return 1; // technically there is one null terminator in every valid string
-	
-	u32 result = 0;
-	while (true)
-	{
-		Char now = *string++;
-		if (now == ch)
-			++result;
-		else if (now == TEXT('\0'))
-			break;
-	}
-	return result;
-}
-
-static void SaveTilemapToSrcFile()
-{
-	/*// #TODO Unfinished
- auto [srcBytes, srcLen] = g_Memory->DEBUGPlatformReadEntireFile(TEXT(__FILE__));
- 
- Char *src = (Char *) srcBytes;
- 
- Char newLine = TEXT('\n');
- u32 lines = CountCharacter(src, newLine);
- 
- Char log[30];
- _stprintf_s(log, 30, TEXT("%d\n"), lines);
- OutputDebugString(log);
- */// #TODO Unfinished
-}
-
 static void DrawRectangle(GameOffscreenBuffer *buffer, real32 fMinX, real32 fMinY, real32 fMaxX, real32 fMaxY, real32 r, real32 g, real32 b)
 {
 	int minX = RoundToS32(fMinX);
@@ -122,7 +89,6 @@ EXPORT GAME_UPDATE_AND_RENDER(GameUpdateAndRender /*const GameMemory& gameMemory
 		playerPosition.AbsTileY = 3;
 		playerPosition.TileRelX = 5.0f;
 		playerPosition.TileRelY = 5.0f;
-		playerPosition = CanonizePosition(tileMap, playerPosition);
 		
 		tileMap->TileChunks = PushArray(&worldArena, tileMap->TileChunkCountY * tileMap->TileChunkCountX, TileChunk);
 		
@@ -157,6 +123,9 @@ EXPORT GAME_UPDATE_AND_RENDER(GameUpdateAndRender /*const GameMemory& gameMemory
 	
 	TileMap* tileMap = world->TileMap;
 	
+	real32 screenCenterX = (real32) screenBuffer->Width  / 2;
+	real32 screenCenterY = (real32) screenBuffer->Height / 2;
+	
 	const real32 playerWidth = tileMap->TileSideInMeters * .75f;
 	const real32 playerHeight = (real32) tileMap->TileSideInMeters;
 	
@@ -164,22 +133,14 @@ EXPORT GAME_UPDATE_AND_RENDER(GameUpdateAndRender /*const GameMemory& gameMemory
 	{
 		if (input.MouseButtons[MOUSE_LEFT].EndedDown)
 		{
-			int tileX = input.MouseX / tileMap->TileSideInPixels;
-			int tileY = input.MouseY / tileMap->TileSideInPixels;
-			
-			//currentTileMap->Tiles[tileY * world.TileMapWidth + tileX] = 1;
-			
-			SaveTilemapToSrcFile();
+			TileMapPosition targetTile = ScreenCoordsToTileMapPosition(*screenBuffer, tileMap, playerPosition, input.MouseX, input.MouseY);
+			SetTileValue(tileMap, targetTile.AbsTileX, targetTile.AbsTileY, 1);
 		}
 		
 		if (input.MouseButtons[MOUSE_RIGHT].EndedDown)
 		{
-			int tileX = input.MouseX / tileMap->TileSideInPixels;
-			int tileY = input.MouseY / tileMap->TileSideInPixels;
-			
-			//currentTileMap->Tiles[tileY * world.TileMapWidth + tileX] = 0;
-			
-			SaveTilemapToSrcFile();
+			TileMapPosition targetTile = ScreenCoordsToTileMapPosition(*screenBuffer, tileMap, playerPosition, input.MouseX, input.MouseY);
+			SetTileValue(tileMap, targetTile.AbsTileX, targetTile.AbsTileY, 0);
 		}
 		
 		int dx = 0, dy = 0;
@@ -208,7 +169,6 @@ EXPORT GAME_UPDATE_AND_RENDER(GameUpdateAndRender /*const GameMemory& gameMemory
 		playerRight.TileRelX += 0.5f * playerWidth;
 		playerRight = CanonizePosition(tileMap, playerRight);
 		
-		
 		if (IsWorldPointEmpty(tileMap, newPlayerPosition) && IsWorldPointEmpty(tileMap, playerLeft) && IsWorldPointEmpty(tileMap, playerRight))
 		{
 			playerPosition = newPlayerPosition;
@@ -219,9 +179,6 @@ EXPORT GAME_UPDATE_AND_RENDER(GameUpdateAndRender /*const GameMemory& gameMemory
 	DrawRectangle(screenBuffer, .0f, .0f, (real32) screenBuffer->Width, (real32) screenBuffer->Height, .0f, .0f, .0f);
 	
 	// Draw the world
-	real32 screenCenterX = .5f * (real32) screenBuffer->Width;
-	real32 screenCenterY = .5f * (real32) screenBuffer->Height;
-	
 	for (int relRow = -20; relRow < 20; ++relRow)
 	{
 		for (int relCol = -30; relCol < 30; ++relCol)
