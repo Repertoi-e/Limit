@@ -6,20 +6,13 @@ struct GameMemory
 {
 	void *Permanent;
 	u64 PermanentSize;
-
+	
 	void *Transient;
 	u64 TransientSize;
-
+	
 	DEBUGPlatformFreeFileMemoryFunc *DEBUGPlatformFreeFileMemory;
 	DEBUGPlatformReadEntireFileFunc *DEBUGPlatformReadEntireFile;
 	DEBUGPlatformWriteEntireFileFunc *DEBUGPlatformWriteEntireFile;
-};
-
-struct GameState
-{
-	int PlayerX, PlayerY;
-
-	bool IsInitialized;
 };
 
 struct GameOffscreenBuffer
@@ -44,20 +37,29 @@ struct GameButtonState
 	bool32 EndedDown;
 };
 
-struct GameInput
+
+#define MOUSE_LEFT   0
+#define MOUSE_MIDDLE 1
+#define MOUSE_RIGHT  2
+#define MOUSE_X1     3
+#define MOUSE_X2     4
+
+struct GameInput 
 {
+	real32 DeltaTime; 
 	int MouseX, MouseY;
 	GameButtonState MouseButtons[5]; // In order: LB, MB, RB, X1, X2
-
+	
 	union
 	{
-		GameButtonState Buttons[5];
+		GameButtonState Buttons[6];
 		struct
-		{
+		{ 
 			GameButtonState MoveUp;
 			GameButtonState MoveDown;
 			GameButtonState MoveLeft;
 			GameButtonState MoveRight;
+			GameButtonState Sprint;
 			GameButtonState Jump;
 		};
 	};

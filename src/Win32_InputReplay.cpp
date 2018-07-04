@@ -16,12 +16,12 @@ static void Win32BeginRecordingInput(Win32State *state, int recordingSlot)
 	if (buffer->MemoryBlock)
 	{
 		state->InputRecordingSlot = recordingSlot;
-
+		
 		Char FileName[MAX_PATH];
 		Win32GetInputFileLocation(state, true, recordingSlot, String(FileName, MAX_PATH));
 		state->RecordingHandle = CreateFile(FileName, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
-
-		CopyMemory(buffer->MemoryBlock, state->GameMemoryBlock, state->TotalMemorySize);
+		
+		CopyMemory(buffer->MemoryBlock, state->GameMemoryBlock, (size_t) state->TotalMemorySize);
 	}
 }
 
@@ -46,14 +46,14 @@ static void Win32BeginInputPlayBack(Win32State *state, int playingSlot)
 	{
 		// Save the input before starting playback. See Win32_Limit.h for explanation.
 		CopyMemory(state->SavedInputBeforePlay, state->Input, sizeof(state->Input));
-
+		
 		state->InputPlayingSlot = playingSlot;
 		Char FileName[MAX_PATH];
 		Win32GetInputFileLocation(state, true, playingSlot, String(FileName, MAX_PATH));
-
+		
 		state->PlaybackHandle = CreateFile(FileName, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0);
-
-		CopyMemory(state->GameMemoryBlock, buffer->MemoryBlock, state->TotalMemorySize);
+		
+		CopyMemory(state->GameMemoryBlock, buffer->MemoryBlock, (size_t) state->TotalMemorySize);
 	}
 }
 
@@ -61,7 +61,7 @@ static void Win32EndInputPlayBack(Win32State *state)
 {
 	// Restore the state of the input to what it was before start of playback. See Win32_Limit.h for explanation.
 	CopyMemory(state->Input, state->SavedInputBeforePlay, sizeof(state->SavedInputBeforePlay));
-
+	
 	CloseHandle(state->PlaybackHandle);
 	state->PlaybackHandle = 0;
 	state->InputPlayingSlot = -1;

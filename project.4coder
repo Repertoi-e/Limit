@@ -1,0 +1,41 @@
+version(1);
+
+project_name = "Limit";
+patterns = {
+	"*.cpp",
+	"*.h",
+	"*.bat",
+	"*.4coder"
+};
+
+blacklist_patterns = {
+	".*"
+};
+
+load_paths_win = {
+	{"."}, .relative = true, .recursive = true
+};
+
+load_paths = {
+	{ load_paths_win, .os = "win" },
+};
+
+command_list = {
+	{ .name = "build",
+	  .out = "compilation",
+	  .footer_panel = true,
+	  .save_dirty_files = true,
+	  .cursor_at_end = false,
+	  .cmd = { { "build.bat BOTH DEBUG", .os = "win"} }
+	},
+	{ .name = "run",
+	  .save_dirty_false = false,
+	  .cursor_at_end = true,
+	  .cmd = { { "/bin/Win32_Limit.exe", .os = "win" } }
+	}
+};
+
+fkey_command[7] = "build";
+fkey_command[5] = "run";
+
+

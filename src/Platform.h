@@ -42,9 +42,3 @@ typedef DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFileFunc);
 #define DEBUG_PLATFORM_WRITE_ENTIRE_FILE(name) bool32 name(const Char *fileName, void *memory, u32 memorySize)
 typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFileFunc);
 #endif
-
-inline u32 SafeTruncateU64(u64 value)
-{
-	Assert(value <= 0xFFFFFFFF);
-	return (u32) value;
-}

@@ -1,4 +1,4 @@
-﻿//* Defines *//
+//* Defines *//
 #define WINDOW_WIDTH	800
 #define WINDOW_HEIGHT	600
 #define WINDOW_TITLE	TEXT("Test Game")
@@ -7,7 +7,7 @@
 #define SOUND_DEBUG_INFO_XXX
 
 // Define WINDOW_TOPMOST to enable window always staying on top of other windows.
-#define WINDOW_TOPMOST
+// #define WINDOW_TOPMOST
 
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "gdi32.lib")
@@ -16,7 +16,7 @@
 // Game source code is compiled separately from the engine
 // as a .dll to support "edit-and-continue" type of experience
 // for the developer. When you compile the game during runtime,
-// the engine detects the new .dll and reloads it instantly,
+// the engine detects the new .dll and reloads it
 // causing any changes made on the game side to take effect
 // immediately. Because of this feature the engine may not support
 // any kind of scripting language (unless for some reason compile
@@ -38,7 +38,7 @@
 // from the platform layer is for file I/O operations.
 
 // The project is built as two translation units.
-// One for the platform layer and one for the game code. 
+// One for the platform layer and one for the game code.
 #include "Win32_Limit.h"
 #include "Win32_FileIO.cpp"
 #include "Win32_Sound.cpp"
@@ -249,7 +249,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 			// sure that there are no unexpected crashes when
 			// dynamically allocating memory all the time.
 			GameMemory gameMemory;
-			gameMemory.PermanentSize = KiloByte(128);
+			gameMemory.PermanentSize = MegaByte(10);
 			gameMemory.TransientSize = KiloByte(256);
 
 			u64 memoryBaseAddress = 0;
@@ -390,6 +390,8 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 									Win32ProcessKeyboardMessage(&newInput->MoveDown, isDown);
 								else if (vkCode == 'D')
 									Win32ProcessKeyboardMessage(&newInput->MoveRight, isDown);
+								else if (vkCode == VK_SHIFT)
+									Win32ProcessKeyboardMessage(&newInput->Sprint, isDown);
 								else if (vkCode == VK_SPACE)
 									Win32ProcessKeyboardMessage(&newInput->Jump, isDown);
 								// This fails to map keys if the replay buffers are more than 9.
@@ -472,6 +474,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 					if (win32State.InputPlayingSlot != -1)
 						Win32PlayBackInput(&win32State, newInput);
 
+					newInput->DeltaTime = targetSecondsPerFrame;
 					if (game.UpdateAndRender)
 						game.UpdateAndRender(gameMemory, *newInput, &screenBuffer);
 
@@ -484,23 +487,23 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 					{
 						/* How sound output computaion works.
 
-						We define a safety value that is the number of samples
-						we think out game update loop may vary by (let's say
-						up to 2ms).
+   We define a safety value that is the number of samples
+   we think out game update loop may vary by (let's say
+   up to 2ms).
 
-						When we wake up to write audio, we will look and see what the play
-						cursor position is and we will forecast ahead where we whink the
-						play cursor will be on the next frame boundary.
+   When we wake up to write audio, we will look and see what the play
+   cursor position is and we will forecast ahead where we whink the
+   play cursor will be on the next frame boundary.
 
-						We will then look to see if the write cursor is before that by at
-						least our safety value. If it is, the target fill position is that
-						frame boundary plus one frame. This gives us perfect audio sync in the
-						case of a card that has low enough latency.
+   We will then look to see if the write cursor is before that by at
+   least our safety value. If it is, the target fill position is that
+   frame boundary plus one frame. This gives us perfect audio sync in the
+   case of a card that has low enough latency.
 
-						If the write cursor is _after_ that safety margin, then we assume
-						we can never sync the audio perfectly, so we will write one frame's
-						worth of audio plus the safety margin's worth of guard samples.
-						*/
+   If the write cursor is _after_ that safety margin, then we assume
+   we can never sync the audio perfectly, so we will write one frame's
+   worth of audio plus the safety margin's worth of guard samples.
+   */
 						if (!validSound)
 						{
 							soundOutput.RunningSampleIndex = writeCursor / soundOutput.BytesPerSample;

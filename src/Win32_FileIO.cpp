@@ -1,6 +1,7 @@
-#include "Platform.h"
-
 #ifdef LIMIT_INTERNAL 
+
+#include "Platform.h"
+#include "Intrinsics.h"
 
 DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory)
 {
@@ -11,7 +12,7 @@ DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory)
 DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile)
 {
 	DEBUGFileReadResult result = {};
-
+	
 	HANDLE fileHandle = CreateFile(fileName, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
 	if (fileHandle != INVALID_HANDLE_VALUE)
 	{
@@ -45,14 +46,14 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile)
 		_stprintf_s(buffer, 57 + MAX_PATH, TEXT("Terminal failure: Unable to open file \"%s\" for reading.\n"), fileName);
 		OutputDebugString(buffer);
 	}
-
+	
 	return result;
 }
 
 DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
 {
 	bool32 result = 0;
-
+	
 	HANDLE fileHandle = CreateFile(fileName, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
 	if (fileHandle != INVALID_HANDLE_VALUE)
 	{
@@ -76,7 +77,7 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
 		_stprintf_s(buffer, 57 + MAX_PATH, TEXT("Terminal failure: Unable to open file \"%s\" for writing.\n"), fileName);
 		OutputDebugString(buffer);
 	}
-
+	
 	return result;
 }
 #endif
