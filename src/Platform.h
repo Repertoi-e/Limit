@@ -42,3 +42,22 @@ typedef DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFileFunc);
 #define DEBUG_PLATFORM_WRITE_ENTIRE_FILE(name) bool32 name(const Char *fileName, void *memory, u32 memorySize)
 typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFileFunc);
 #endif
+
+// Memory arena
+struct MemoryArena
+{
+	byte *Base;
+	u64 Used;
+	u64 Size;
+};
+
+#define PushStruct(arena, type) (type *) PushSize_(arena, sizeof(type))
+#define PushArray(arena, count, type) (type *) PushSize_(arena, (count) * sizeof(type))
+
+static byte* PushSize_(MemoryArena *arena, u32 size)
+{
+	Assert(arena->Used + size <= arena->Size);
+	byte *result = arena->Base + arena->Used;
+	arena->Used += size;
+	return result;
+}

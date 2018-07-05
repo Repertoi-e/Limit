@@ -6,17 +6,6 @@
 
 static const GameMemory* g_Memory; // global for the game .dll
 
-#define PushStruct(Arena, Type) (Type *)PushSize_(Arena, sizeof(Type))
-#define PushArray(Arena, Count, Type) (Type *)PushSize_(Arena, (Count) * sizeof(Type))
-
-static byte* PushSize_(MemoryArena *arena, u32 size)
-{
-	Assert(arena->Used + size <= arena->Size);
-	byte *result = arena->Base + arena->Used;
-	arena->Used += size;
-	return result;
-}
-
 static void DrawRectangle(GameOffscreenBuffer *buffer, real32 fMinX, real32 fMinY, real32 fMaxX, real32 fMaxY, real32 r, real32 g, real32 b)
 {
 	int minX = RoundToS32(fMinX);
@@ -55,6 +44,9 @@ EXPORT GAME_UPDATE_AND_RENDER(GameUpdateAndRender /*const GameMemory& gameMemory
 	// Get references to avoid having to type state-> everywhere (syntactic sugar)
 	TileMapPosition& playerPosition = state->PlayerPosition;
 	World*& world = state->World;
+	
+	constexpr size_t LogMessageSize = 512;
+	Char LogMessage[LogMessageSize]; // Buffer used for _stprintf_s-ing text to the VS Debug output
 	
 	if (!state->IsInitialized)
 	{
@@ -173,13 +165,16 @@ EXPORT GAME_UPDATE_AND_RENDER(GameUpdateAndRender /*const GameMemory& gameMemory
 		{
 			playerPosition = newPlayerPosition;
 		}
+		
+		_stprintf_s(LogMessage, LogMessageSize, TEXT("%f, %f\n"), playerPosition.TileRelX, playerPosition.TileRelY);
+		OutputDebugString(LogMessage);
 	}
 	
 	/* Render */
 	DrawRectangle(screenBuffer, .0f, .0f, (real32) screenBuffer->Width, (real32) screenBuffer->Height, .0f, .0f, .0f);
 	
 	// Draw the world
-	for (int relRow = -20; relRow < 20; ++relRow)
+	for (int relRow = -21; relRow < 21; ++relRow)
 	{
 		for (int relCol = -30; relCol < 30; ++relCol)
 		{
@@ -189,8 +184,9 @@ EXPORT GAME_UPDATE_AND_RENDER(GameUpdateAndRender /*const GameMemory& gameMemory
 			real32 gray = 0.5f;
 			if (GetTileValue(tileMap, col, row) == 1)
 				gray = 1.0f;
-			if ((col == playerPosition.AbsTileX) && (row == playerPosition.AbsTileY))
-				gray = 0;
+			// Draw player tile in black
+			// if ((col == playerPosition.AbsTileX) && (row == playerPosition.AbsTileY))
+			// gray = 0;
 			
 			real32 centerX = screenCenterX - tileMap->MetersToPixels * playerPosition.TileRelX + (real32) relCol * tileMap->TileSideInPixels;
 			real32 centerY = screenCenterY + tileMap->MetersToPixels * playerPosition.TileRelY - (real32) relRow * tileMap->TileSideInPixels;

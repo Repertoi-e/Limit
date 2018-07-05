@@ -63,6 +63,9 @@ inline void CanonizeCoord(TileMap *tileMap, u32 *tile, real32 *tileRel)
 	*tile += offset;
 	*tileRel -= offset * tileMap->TileSideInMeters;
 	
+	// Round to 5 decimal places to reduce floating point errors causing lines to appear when drawing.
+	*tileRel = std::roundf(*tileRel * 100000.f) / 100000.f;
+	
 	Assert(*tileRel >= -.5f * tileMap->TileSideInMeters);
 	Assert(*tileRel <= .5f * tileMap->TileSideInMeters);
 }
