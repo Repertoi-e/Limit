@@ -37,6 +37,118 @@ static void DrawRectangle(GameOffscreenBuffer *buffer, real32 fMinX, real32 fMin
 	}
 }
 
+
+#pragma pack(push, 1)
+struct BMPHeader
+{
+	u16 FileType;
+	u32 FileSize;
+	u16 Reserved1, Reserved2;
+	u32 BitmapOffset;
+	u32 Size;
+	int Width, Height;
+	u16 Planes;
+	u16 BitsPerPixel;
+	u32 Compression;
+	u32 SizeOfBitmap;
+	int HorzResolution, VertResolution;
+	u32 ColorsUsed;
+	u32 ColorsImportant;
+	
+	u32 RedMask, GreenMask, BlueMask;
+};
+#pragma pack(pop)
+
+static LoadedBMP DEBUGLoadBMP(DEBUGPlatformReadEntireFileFunc readFileProc, const Char *path)
+{
+	LoadedBMP result;
+	ZeroMemory(&result, sizeof(LoadedBMP));
+	{
+		auto [contents, contentsSize] = readFileProc(path);
+		if (contentsSize != 0)
+		{
+			BMPHeader *header = (BMPHeader *) contents;
+			result.Width = header->Width;
+			result.Height = header->Height;
+			
+			Assert(header->Compression == 3);
+			
+			u32 *pixels = (u32 *)((byte *) contents + header->BitmapOffset);
+			result.Pixels = pixels;
+			
+			u32 alphaMask = ~(header->RedMask | header->GreenMask | header->BlueMask);
+			
+			auto [redShiftFound, redShift] = FindLeastSignificantSetBit(header->RedMask);
+			auto [greenShiftFound, greenShift] = FindLeastSignificantSetBit(header->GreenMask);
+			auto [blueShiftFound, blueShift] = FindLeastSignificantSetBit(header->BlueMask);
+			auto [alphaShiftFound, alphaShift] = FindLeastSignificantSetBit(alphaMask);
+			Assert(redShiftFound);
+			Assert(greenShiftFound);
+			Assert(blueShiftFound);
+			Assert(alphaShiftFound);
+			
+			
+			u32 *sourceDest = pixels;
+			for (int y = 0; y < header->Height; ++y)
+			{
+				for (int x = 0; x < header->Width; ++x)
+				{
+					u32 color = *sourceDest;
+					*sourceDest++ = (((color >> alphaShift) & 0xFF) << 24) | (((color >> redShift) & 0xFF) << 16) | (((color >> greenShift) & 0xFF) << 8) | ((color >> blueShift) & 0xFF);
+				}
+			}
+		}
+	}
+	return result;
+}
+
+static void DrawBMP(GameOffscreenBuffer *buffer, const LoadedBMP& bmp, real32 realX, real32 realY)
+{
+	int minX = RoundToS32(realX);
+	int minY = RoundToS32(realY);
+	int maxX = RoundToS32(realX + bmp.Width);
+	int maxY = RoundToS32(realY + bmp.Height);
+	
+	if (minX < 0)
+		minX = 0;
+	if (minY < 0)
+		minY = 0;
+	if (maxX > buffer->Width)
+		maxX = buffer->Width;
+	if (maxY > buffer->Height)
+		maxY = buffer->Height;
+	
+	u32 *sourceRow = bmp.Pixels + bmp.Width * (bmp.Height - 1);
+	byte *destRow = ((byte *) buffer->Memory + minX * buffer->BytesPerPixel + minY * buffer->Pitch);
+	for (int y = minY; y < maxY; ++y)
+	{
+		u32 *dest = (u32 *) destRow;
+		u32 *source = sourceRow;
+		for (int x = minX; x < maxX; ++x)
+		{
+			real32 a = (real32)((*source >> 24) & 0xFF) / 255.0f;
+			real32 sr = (real32)((*source >> 16) & 0xFF);
+			real32 sg = (real32)((*source >> 8) & 0xFF);
+			real32 sb = (real32)(*source & 0xFF);
+			
+			real32 dr = (real32)((*dest >> 16) & 0xFF);
+			real32 dg = (real32)((*dest >> 8) & 0xFF);
+			real32 db = (real32)(*dest & 0xFF);
+			
+			real32 r = (1.f - a) * dr + a * sr;
+			real32 g = (1.f - a) * dg + a * sg;
+			real32 b = (1.f - a) * db + a * sb;
+			
+			*dest = RoundToU32(r) << 16 | RoundToU32(g) << 8 | RoundToU32(b);
+			
+			++dest;
+			++source;
+		}
+		destRow += buffer->Pitch;
+		sourceRow -= bmp.Width;
+	}
+}
+
 EXPORT GAME_UPDATE_AND_RENDER(GameUpdateAndRender /*const GameMemory& gameMemory, const GameInput& input, GameOffscreenBuffer *screenBuffer*/)
 {
 	GameState *state = (GameState *) gameMemory.Permanent;
@@ -104,13 +216,17 @@ EXPORT GAME_UPDATE_AND_RENDER(GameUpdateAndRender /*const GameMemory& gameMemory
 					for (int y = 0; y < tilePerHeight; y++)
 					{
 						// byte value = (x == (y + 1)) ? 1 : 0;
-						byte value = ((x + y) % 2 == 0) && (rand() % 7 == 0) ? 1 : 0;
+						byte value = ((x + y) % 2 == 0) && (rand() % 70 == 0) ? 1 : 0;
 						SetTileValue(tileMap, sx * screenXCount + x, sy * screenYCount + y, value);
 					}
 				}
 			}
 		}
 		
+		
+		state->Test = DEBUGLoadBMP(gameMemory.DEBUGPlatformReadEntireFile, TEXT("test.bmp"));
+		state->Background = DEBUGLoadBMP(gameMemory.DEBUGPlatformReadEntireFile, TEXT("background.bmp"));
+		state->Player = DEBUGLoadBMP(gameMemory.DEBUGPlatformReadEntireFile, TEXT("player.bmp"));
 	}
 	
 	TileMap* tileMap = world->TileMap;
@@ -171,7 +287,8 @@ EXPORT GAME_UPDATE_AND_RENDER(GameUpdateAndRender /*const GameMemory& gameMemory
 	}
 	
 	/* Render */
-	DrawRectangle(screenBuffer, .0f, .0f, (real32) screenBuffer->Width, (real32) screenBuffer->Height, .0f, .0f, .0f);
+	// DrawRectangle(screenBuffer, .0f, .0f, (real32) screenBuffer->Width, (real32) screenBuffer->Height, .0f, .0f, .0f);
+	DrawBMP(screenBuffer, state->Background, 0, 0);
 	
 	// Draw the world
 	for (int relRow = -21; relRow < 21; ++relRow)
@@ -181,23 +298,27 @@ EXPORT GAME_UPDATE_AND_RENDER(GameUpdateAndRender /*const GameMemory& gameMemory
 			u32 col = playerPosition.AbsTileX + relCol;
 			u32 row = playerPosition.AbsTileY + relRow;
 			
-			real32 gray = 0.5f;
-			if (GetTileValue(tileMap, col, row) == 1)
-				gray = 1.0f;
-			// Draw player tile in black
-			// if ((col == playerPosition.AbsTileX) && (row == playerPosition.AbsTileY))
-			// gray = 0;
-			
-			real32 centerX = screenCenterX - tileMap->MetersToPixels * playerPosition.TileRelX + (real32) relCol * tileMap->TileSideInPixels;
-			real32 centerY = screenCenterY + tileMap->MetersToPixels * playerPosition.TileRelY - (real32) relRow * tileMap->TileSideInPixels;
-			
-			
-			real32 minX = centerX - .5f * tileMap->TileSideInPixels;
-			real32 minY = centerY - .5f * tileMap->TileSideInPixels;
-			real32 maxX = centerX + .5f * tileMap->TileSideInPixels;
-			real32 maxY = centerY + .5f * tileMap->TileSideInPixels;
-			
-			DrawRectangle(screenBuffer, minX, minY, maxX, maxY, gray, gray, gray);
+			byte id = GetTileValue(tileMap, col, row);
+			if (id > 0)
+			{
+				real32 gray = 0.5f;
+				if (id == 1)
+					gray = 1.0f;
+				// Draw player tile in black
+				// if ((col == playerPosition.AbsTileX) && (row == playerPosition.AbsTileY))
+				// gray = 0;
+				
+				real32 centerX = screenCenterX - tileMap->MetersToPixels * playerPosition.TileRelX + (real32) relCol * tileMap->TileSideInPixels;
+				real32 centerY = screenCenterY + tileMap->MetersToPixels * playerPosition.TileRelY - (real32) relRow * tileMap->TileSideInPixels;
+				
+				
+				real32 minX = centerX - .5f * tileMap->TileSideInPixels;
+				real32 minY = centerY - .5f * tileMap->TileSideInPixels;
+				real32 maxX = centerX + .5f * tileMap->TileSideInPixels;
+				real32 maxY = centerY + .5f * tileMap->TileSideInPixels;
+				
+				DrawRectangle(screenBuffer, minX, minY, maxX, maxY, gray, gray, gray);
+			}
 		}
 	}
 	
@@ -206,7 +327,10 @@ EXPORT GAME_UPDATE_AND_RENDER(GameUpdateAndRender /*const GameMemory& gameMemory
 	real32 playerMinX = screenCenterX - 0.5f * tileMap->MetersToPixels * playerWidth;
 	real32 playerMinY = screenCenterY - tileMap->MetersToPixels * playerHeight;
 	
-	DrawRectangle(screenBuffer, playerMinX, playerMinY, playerMinX + tileMap->MetersToPixels * playerWidth, playerMinY + tileMap->MetersToPixels * playerHeight, .2f, .3f, .8f);
+	// DrawRectangle(screenBuffer, playerMinX, playerMinY, playerMinX + tileMap->MetersToPixels * playerWidth, playerMinY + tileMap->MetersToPixels * playerHeight, .2f, .3f, .8f);
+	DrawBMP(screenBuffer, state->Player, playerMinX, playerMinY);
+	
+	DrawBMP(screenBuffer, state->Test, 10.0f, 15.0f);
 }
 
 

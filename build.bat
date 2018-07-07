@@ -42,8 +42,10 @@ EXIT /B %ERRORLEVEL%
 :: Build functions
 :build_game
 cl %DEFINES% %COMPILER_SWITCHES% ..\src\test_game\TestGame.cpp /LD /link %LINKER_SWITCHES% /PDB:TestGame_%RANDOM%.pdb /EXPORT:GameUpdateAndRender /EXPORT:GameGetSoundSamples
+echo ^> Game built
 EXIT /B 0
 
 :build_engine
 cl %DEFINES% %COMPILER_SWITCHES% ..\src\Win32_Limit.cpp /link %LINKER_SWITCHES%
+echo ^> Engine built
 EXIT /B 0

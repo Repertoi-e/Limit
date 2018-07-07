@@ -1,5 +1,18 @@
 #pragma once
 
+#if !defined COMPILER_MSVC
+#define COMPILER_MSVC 0
+#endif
+
+#if !COMPILER_MSVC
+#if _MSC_VER
+#undef COMPILER_MSVC
+#define COMPILER_MSVC 1
+#endif
+#else
+// More compilers!
+#endif
+
 #ifdef _WIN32 
 #define WIN32_LEAN_AND_MEAN
 #define WIN32_EXTRA_LEAN

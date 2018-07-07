@@ -1,6 +1,10 @@
 #pragma once
 
-#include "Types.h"
+#include "Platform.h"
+
+#if COMPILER_MSVC
+#include <intrin.h>
+#endif
 
 #include <cmath> // temporary
 
@@ -40,6 +44,33 @@ inline real32 ATan2(real32 y, real32 x)
 	return std::atan2(y, x);
 }
 
+struct BitScanResult
+{
+	bool32 Found;
+	u32 Index;
+};
+
+inline BitScanResult FindLeastSignificantSetBit(u32 value)
+{
+	BitScanResult result;
+	ZeroMemory(&result, sizeof(BitScanResult));
+	{
+#if COMPILER_MSVC
+		result.Found = _BitScanForward((unsigned long *)&result.Index, value);
+#else
+		for (int i = 0; i < 24; ++i)
+		{
+			if (value & (1 << i))
+			{
+				result.Index = i;
+				result.Found = true;
+				break;
+			}
+		}
+#endif
+	}
+	return result;
+}
 
 
 
