@@ -31,7 +31,7 @@ command_list = {
 	{ .name = "run",
 	  .save_dirty_false = false,
 	  .cursor_at_end = true,
-	  .cmd = { { "/bin/Win32_Limit.exe", .os = "win" } }
+	  .cmd = { { "START /D \data\ \bin\Win32_Limit.exe", .os = "win" } }
 	}
 };
 

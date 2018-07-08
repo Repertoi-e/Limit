@@ -109,16 +109,25 @@ static void DrawBMP(GameOffscreenBuffer *buffer, const LoadedBMP& bmp, real32 re
 	int maxX = RoundToS32(realX + bmp.Width);
 	int maxY = RoundToS32(realY + bmp.Height);
 	
+	int offsetX = 0;
 	if (minX < 0)
+	{
+		offsetX = -minX;
 		minX = 0;
+	}
+	int offsetY = 0;
 	if (minY < 0)
+	{
+		offsetY = -minY;
 		minY = 0;
+	}
 	if (maxX > buffer->Width)
 		maxX = buffer->Width;
 	if (maxY > buffer->Height)
 		maxY = buffer->Height;
 	
 	u32 *sourceRow = bmp.Pixels + bmp.Width * (bmp.Height - 1);
+	sourceRow += -offsetY * bmp.Width + offsetX;
 	byte *destRow = ((byte *) buffer->Memory + minX * buffer->BytesPerPixel + minY * buffer->Pitch);
 	for (int y = minY; y < maxY; ++y)
 	{
@@ -185,7 +194,7 @@ EXPORT GAME_UPDATE_AND_RENDER(GameUpdateAndRender /*const GameMemory& gameMemory
 		tileMap->TileChunkCountY = 120;
 		
 		tileMap->TileSideInMeters = 1.4f;
-		tileMap->TileSideInPixels = 15;
+		tileMap->TileSideInPixels = 30;
 		tileMap->MetersToPixels = tileMap->TileSideInPixels / tileMap->TileSideInMeters;
 		
 		
@@ -330,7 +339,7 @@ EXPORT GAME_UPDATE_AND_RENDER(GameUpdateAndRender /*const GameMemory& gameMemory
 	// DrawRectangle(screenBuffer, playerMinX, playerMinY, playerMinX + tileMap->MetersToPixels * playerWidth, playerMinY + tileMap->MetersToPixels * playerHeight, .2f, .3f, .8f);
 	DrawBMP(screenBuffer, state->Player, playerMinX, playerMinY);
 	
-	DrawBMP(screenBuffer, state->Test, 10.0f, 15.0f);
+	DrawBMP(screenBuffer, state->Test, 20.0f, 15.0f);
 }
 
 

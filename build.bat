@@ -41,7 +41,9 @@ EXIT /B %ERRORLEVEL%
 
 :: Build functions
 :build_game
+echo WAITING FOR PDB > lock.temp
 cl %DEFINES% %COMPILER_SWITCHES% ..\src\test_game\TestGame.cpp /LD /link %LINKER_SWITCHES% /PDB:TestGame_%RANDOM%.pdb /EXPORT:GameUpdateAndRender /EXPORT:GameGetSoundSamples
+del lock.temp
 echo ^> Game built
 EXIT /B 0
 

@@ -104,34 +104,30 @@ inline FILETIME Win32GetLastWriteTime(const Char *fileName)
 	return result;
 }
 
-static Win32GameCode Win32LoadGameCode(const Char *sourceDLLName, const Char *tempDLLName)
+static Win32GameCode Win32LoadGameCode(const Char *sourceDLLName, const Char *tempDLLName, const Char *lockName)
 {
 	Win32GameCode result = {};
 	
+	// Reload only if the compilation is finished (our lock file is deleted)
 	result.LastWriteTime = Win32GetLastWriteTime(sourceDLLName);
-	
-	// Wait for the compiler to unlock the .dll so we can copy it,
-	// so we try CreateFile until it succeeds.
-	// #TODO Maybe find a way to implement this properly...
-	HANDLE dummy;
-	while ((dummy = CreateFile(sourceDLLName, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0)) == INVALID_HANDLE_VALUE)
-		Sleep(5);
-	CloseHandle(dummy);
-	
-	CopyFile(sourceDLLName, tempDLLName, FALSE);
-	
-	result.DLL = LoadLibrary(tempDLLName);
-	if (result.DLL)
+	WIN32_FILE_ATTRIBUTE_DATA ignored;
+	if (!GetFileAttributesEx(lockName, GetFileExInfoStandard, &ignored))
 	{
-		result.UpdateAndRender = (GameUpdateAndRenderFunc *) GetProcAddress(result.DLL, "GameUpdateAndRender");
-		result.GetSoundSamples = (GameGetSoundSamplesFunc *) GetProcAddress(result.DLL, "GameGetSoundSamples");
-		result.IsValid = result.UpdateAndRender && result.GetSoundSamples;
-	}
-	
-	if (!result.IsValid)
-	{
-		result.UpdateAndRender = 0;
-		result.GetSoundSamples = 0;
+		CopyFile(sourceDLLName, tempDLLName, FALSE);
+		
+		result.DLL = LoadLibrary(tempDLLName);
+		if (result.DLL)
+		{
+			result.UpdateAndRender = (GameUpdateAndRenderFunc *) GetProcAddress(result.DLL, "GameUpdateAndRender");
+			result.GetSoundSamples = (GameGetSoundSamplesFunc *) GetProcAddress(result.DLL, "GameGetSoundSamples");
+			result.IsValid = result.UpdateAndRender && result.GetSoundSamples;
+		}
+		
+		if (!result.IsValid)
+		{
+			result.UpdateAndRender = 0;
+			result.GetSoundSamples = 0;
+		}
 	}
 	return result;
 }
@@ -205,6 +201,8 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 	
 	Char tempGameCodeDLLPath[MAX_PATH];
 	Win32BuildEXEPathFileName(&win32State, TEXT("TestGame.temp.dll"), String(tempGameCodeDLLPath, MAX_PATH));
+	Char gameCodeLockFullPath[MAX_PATH];
+	Win32BuildEXEPathFileName(&win32State, TEXT("lock.temp"), String(gameCodeLockFullPath, MAX_PATH));
 	
 	WNDCLASS wndClass;
 	ZeroMemory(&wndClass, sizeof(WNDCLASS));
@@ -327,7 +325,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 				Win32Timer frameTimer, frameFlipTimer;
 				
 				// Load the game code for the first time
-				Win32GameCode game = Win32LoadGameCode(sourceGameCodeDLLPath, tempGameCodeDLLPath);
+				Win32GameCode game = Win32LoadGameCode(sourceGameCodeDLLPath, tempGameCodeDLLPath, gameCodeLockFullPath);
 				
 				// Window title sugar
 				int gameCodeReloadedTitle = 0;
@@ -343,7 +341,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 					if (CompareFileTime(&newWriteTime, &game.LastWriteTime) != 0)
 					{
 						Win32UnloadGameCode(&game);
-						game = Win32LoadGameCode(sourceGameCodeDLLPath, tempGameCodeDLLPath);
+						while (!(game = Win32LoadGameCode(sourceGameCodeDLLPath, tempGameCodeDLLPath, gameCodeLockFullPath)).IsValid);
 						gameCodeReloadedTitle = (int) (gameUpdateHz * 1.5) /* 1.5 seconds */;
 					}
 					
@@ -486,23 +484,23 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR, int)
 					if (g_SecondarySoundBuffer->GetCurrentPosition(&playCursor, &writeCursor) == DS_OK)
 					{
 						/* How sound output computaion works.
-						We define a safety value that is the number of samples
-						we think out game update loop may vary by (let's say
-						up to 2ms).
-						
-						When we wake up to write audio, we will look and see what the play
-						cursor position is and we will forecast ahead where we whink the
-						play cursor will be on the next frame boundary.
-						
-						We will then look to see if the write cursor is before that by at
-						least our safety value. If it is, the target fill position is that
-						frame boundary plus one frame. This gives us perfect audio sync in the
-						case of a card that has low enough latency.
-						
-						If the write cursor is _after_ that safety margin, then we assume
-						we can never sync the audio perfectly, so we will write one frame's
-						worth of audio plus the safety margin's worth of guard samples.
-						*/
+   We define a safety value that is the number of samples
+   we think out game update loop may vary by (let's say
+   up to 2ms).
+   
+   When we wake up to write audio, we will look and see what the play
+   cursor position is and we will forecast ahead where we whink the
+   play cursor will be on the next frame boundary.
+   
+   We will then look to see if the write cursor is before that by at
+   least our safety value. If it is, the target fill position is that
+   frame boundary plus one frame. This gives us perfect audio sync in the
+   case of a card that has low enough latency.
+   
+   If the write cursor is _after_ that safety margin, then we assume
+   we can never sync the audio perfectly, so we will write one frame's
+   worth of audio plus the safety margin's worth of guard samples.
+   */
 						if (!validSound)
 						{
 							soundOutput.RunningSampleIndex = writeCursor / soundOutput.BytesPerSample;
